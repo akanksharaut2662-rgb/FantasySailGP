@@ -1,0 +1,14 @@
+# Raw data — too large for git (120MB)
+DataChallenge_Export/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
