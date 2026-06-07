@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@keyframes sail-right {
+  0%   { transform: translateX(-160px); }
+  100% { transform: translateX(calc(100vw + 160px)); }
+}
+
+.sail-right {
+  animation: sail-right linear infinite;
+  animation-fill-mode: both;
+}
+
+.sail-left {
+  animation: sail-right linear infinite;
+  animation-fill-mode: both;
+}
