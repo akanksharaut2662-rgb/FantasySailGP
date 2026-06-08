@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount the backend code so you don't need to rebuild on code changes
+      - ./backend:/app
+      # The data loader expects DataChallenge_Export and models to be two levels above app/
+      # e.g., Path(__file__).parent.parent.parent / "DataChallenge_Export"
+      # In the container, __file__ is /app/app/data_loader.py, so its 3rd parent is /
+      - ./DataChallenge_Export:/DataChallenge_Export:ro
+      - ./models:/models
+    environment:
+      # Ensure Python prints to stdout immediately
+      - PYTHONUNBUFFERED=1
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      # Mount the frontend code so you don't need to rebuild on code changes
+      - ./frontend:/app
+      # Prevent local node_modules from overwriting the container's node_modules
+      - /app/node_modules
+    environment:
+      # Point the frontend to the backend running on the host machine
+      # From the browser's perspective, the backend is at localhost:8000
+      - VITE_API_BASE=http://localhost:8000/api
+    depends_on:
+      - backend
