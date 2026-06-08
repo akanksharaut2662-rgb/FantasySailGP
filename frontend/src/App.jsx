@@ -77,7 +77,7 @@ export default function App() {
       {step === 2 && <OptimizerPanel race={selectedRace} recommendations={recommendations} onProceed={handleProceedToBuilder} />}
       {step === 3 && <TeamBuilder race={selectedRace} recommendations={recommendations} onConfirm={handleTeamsConfirmed} />}
       {step === 4 && <RaceScoring result={scoreResult} onViewLeaderboard={handleViewLeaderboard} />}
-      {step === 5 && <Leaderboard result={scoreResult} onReset={handleReset} />}
+      {step === 5 && <Leaderboard result={scoreResult} recommendations={recommendations} onReset={handleReset} />}
     </div>
   );
 }

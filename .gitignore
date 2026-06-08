@@ -23,7 +23,7 @@ env/
 .env.*
 
 # SQLite cache (regenerated on run)
-backend/fantasy_scores.db
+fantasy_scores.db
 
 # Trained model (large binary — commit if small, otherwise git-ignore)
 models/optimizer.pkl

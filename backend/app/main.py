@@ -1,29 +1,27 @@
 """
 main.py
 FastAPI entry point for SailGP Fantasy Predictor backend.
-Run with: uvicorn app.main:app --reload
+Run with: uvicorn app.main:app --reload   (from backend/ directory)
+Docs:      http://localhost:8000/docs
 """
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from .data_loader import load_metadata
-from .database import cache_scores, get_cached_scores, init_db
+from .data_loader import load_all_boats, load_metadata
+from .database import get_or_compute_scores, init_db
 from .models import (
     OptimizerPerformanceResponse,
     RaceInfo,
     RecommendResponse,
     ScoreRequest,
     ScoreResponse,
+    TeamRecommendation,
     TeamScore,
 )
 from .optimizer import get_optimizer_performance, recommend_teams
-from .scoring_engine import score_race
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -51,9 +49,8 @@ def startup() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Endpoints
+# GET /api/races
 # ---------------------------------------------------------------------------
-
 
 @app.get("/api/races", response_model=list[RaceInfo])
 def get_races():
@@ -81,6 +78,10 @@ def get_races():
     return races
 
 
+# ---------------------------------------------------------------------------
+# GET /api/races/{event}/{race_label}/recommend
+# ---------------------------------------------------------------------------
+
 @app.get("/api/races/{event}/{race_label}/recommend", response_model=RecommendResponse)
 def get_recommendations(event: str, race_label: str):
     """Return ML optimizer's team recommendations for a race's wind conditions."""
@@ -103,7 +104,7 @@ def get_recommendations(event: str, race_label: str):
     except FileNotFoundError:
         raise HTTPException(
             status_code=503,
-            detail="Model not trained yet. Run backend/train_model.py first.",
+            detail="Model not trained yet. Run: cd backend && python train_model.py",
         )
 
     return RecommendResponse(
@@ -111,49 +112,28 @@ def get_recommendations(event: str, race_label: str):
         event=event,
         avg_tws_km_h=avg_tws,
         avg_twd_deg=avg_twd,
-        recommendations=recs,
+        recommendations=[TeamRecommendation(**r) for r in recs],
     )
 
 
-@app.get("/api/races/{event}/{race_label}/leaderboard", response_model=list[TeamScore])
-def get_leaderboard(event: str, race_label: str):
-    """Return leaderboard for a race (cached if available, else compute)."""
-    cached = get_cached_scores(event, race_label)
-    if cached:
-        return [TeamScore(**row) for row in cached]
-
-    try:
-        scores_df = score_race(event, race_label)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    scores = scores_df.to_dict(orient="records")
-    cache_scores(event, race_label, scores)
-    return [TeamScore(**row) for row in scores]
-
+# ---------------------------------------------------------------------------
+# POST /api/score
+# ---------------------------------------------------------------------------
 
 @app.post("/api/score", response_model=ScoreResponse)
 def compute_score(req: ScoreRequest):
     """Compute fantasy scores for a race and highlight user's selected teams."""
-    cached = get_cached_scores(req.event, req.race_label)
-    if cached:
-        scores = cached
-    else:
-        try:
-            scores_df = score_race(req.event, req.race_label)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-        scores = scores_df.to_dict(orient="records")
-        cache_scores(req.event, req.race_label, scores)
+    try:
+        scores = get_or_compute_scores(req.event, req.race_label)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     user_set = set(req.user_teams)
     leaderboard = [
         TeamScore(**{**row, "is_user_pick": row["team"] in user_set})
         for row in scores
     ]
-    user_total = sum(
-        row["total_pts"] for row in scores if row["team"] in user_set
-    )
+    user_total = sum(row["total_pts"] for row in scores if row["team"] in user_set)
 
     return ScoreResponse(
         event=req.event,
@@ -164,6 +144,25 @@ def compute_score(req: ScoreRequest):
     )
 
 
+# ---------------------------------------------------------------------------
+# GET /api/races/{event}/{race_label}/leaderboard
+# ---------------------------------------------------------------------------
+
+@app.get("/api/races/{event}/{race_label}/leaderboard", response_model=list[TeamScore])
+def get_leaderboard(event: str, race_label: str):
+    """Return full race leaderboard (cached if available, else compute)."""
+    try:
+        scores = get_or_compute_scores(event, race_label)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return [TeamScore(**{**row, "is_user_pick": False}) for row in scores]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/optimizer/performance
+# ---------------------------------------------------------------------------
+
 @app.get("/api/optimizer/performance", response_model=OptimizerPerformanceResponse)
 def optimizer_performance():
     """Return optimizer performance across all races (predicted top-3 vs actual top-3)."""
@@ -172,9 +171,37 @@ def optimizer_performance():
     except FileNotFoundError:
         raise HTTPException(
             status_code=503,
-            detail="Model not trained yet. Run backend/train_model.py first.",
+            detail="Model not trained yet. Run: cd backend && python train_model.py",
         )
     return OptimizerPerformanceResponse(**perf)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/races/{event}/{race_label}/gps  (Day 4 — animated race replay)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/races/{event}/{race_label}/gps")
+def get_gps(event: str, race_label: str):
+    """
+    Return GPS tracks for all boats in a race.
+    Response shape: [{"team": "AUS", "lat": [...], "lon": [...], "time_s": [...]}]
+    Only includes timestamps where status is 1 (pre-start), 2 (racing), or 3 (finished).
+    """
+    try:
+        boats = load_all_boats(event, race_label)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"{event}/{race_label} not found.")
+
+    result = []
+    for team, df in boats.items():
+        active = df[df["TRK_BOAT_RACE_STATUS_unk"].isin([1, 2, 3])]
+        result.append({
+            "team": team,
+            "lat": active["LATITUDE_GPS_unk"].tolist() if "LATITUDE_GPS_unk" in active.columns else [],
+            "lon": active["LONGITUDE_GPS_unk"].tolist() if "LONGITUDE_GPS_unk" in active.columns else [],
+            "time_s": active["TIME_RACE_s"].tolist() if "TIME_RACE_s" in active.columns else [],
+        })
+    return result
 
 
 # ---------------------------------------------------------------------------

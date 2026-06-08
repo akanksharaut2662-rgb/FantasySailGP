@@ -36,3 +36,7 @@ export const fetchScore = (event, raceLabel, userTeams) =>
 /** GET /api/optimizer/performance */
 export const fetchOptimizerPerformance = () =>
   fetch(`${API_BASE}/optimizer/performance`).then(handleResponse);
+
+/** GET /api/races/{event}/{raceLabel}/gps — GPS tracks for race replay (Day 4) */
+export const fetchGPS = (event, raceLabel) =>
+  fetch(`${API_BASE}/races/${event}/${raceLabel}/gps`).then(handleResponse);

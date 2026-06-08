@@ -7,7 +7,7 @@ SQLite is a cache only — CSVs are the source of truth.
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path("fantasy_scores.db")
+DB_PATH = Path(__file__).parent.parent.parent / "fantasy_scores.db"
 
 
 def init_db() -> None:
@@ -64,6 +64,17 @@ def cache_scores(event: str, race_label: str, scores: list[dict]) -> None:
     )
     conn.commit()
     conn.close()
+
+
+def get_or_compute_scores(event: str, race_label: str) -> list[dict]:
+    """Return cached scores, computing and caching them if not yet stored."""
+    cached = get_cached_scores(event, race_label)
+    if cached:
+        return cached
+    from .scoring_engine import score_race
+    scores = score_race(event, race_label).to_dict(orient="records")
+    cache_scores(event, race_label, scores)
+    return scores
 
 
 def clear_cache(event: str | None = None, race_label: str | None = None) -> None:

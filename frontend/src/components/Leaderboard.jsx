@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { fetchOptimizerPerformance } from "../api";
+
 const FLAG = {
   AUS: "🇦🇺", BRA: "🇧🇷", CAN: "🇨🇦", DEN: "🇩🇰", ESP: "🇪🇸",
   FRA: "🇫🇷", GBR: "🇬🇧", GER: "🇩🇪", ITA: "🇮🇹", NZL: "🇳🇿",
@@ -15,9 +18,16 @@ function RankCell({ rank }) {
   return <span className="text-sm font-bold text-slate-400">#{rank}</span>;
 }
 
-export default function Leaderboard({ result, onReset }) {
+export default function Leaderboard({ result, recommendations = [], onReset }) {
+  const [modelPerf, setModelPerf] = useState(null);
+
+  useEffect(() => {
+    fetchOptimizerPerformance().then(setModelPerf).catch(() => setModelPerf(null));
+  }, []);
+
   if (!result) return null;
 
+  const recTeams = new Set(recommendations.map(r => r.team));
   const sorted = [...result.leaderboard].sort((a, b) => b.total_pts - a.total_pts);
 
   return (
@@ -31,6 +41,18 @@ export default function Leaderboard({ result, onReset }) {
           {result.user_total_score}
         </div>
         <span className="text-2xl font-bold text-slate-400">pts</span>
+      </div>
+
+      {/* Legend */}
+      <div className="flex gap-4 text-sm">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded" style={{ background: "rgba(0,212,255,0.15)", border: "1px solid rgba(0,212,255,0.5)" }} />
+          <span className="text-slate-400 text-xs">Your pick</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-yellow-400 text-sm">★</span>
+          <span className="text-slate-400 text-xs">AI pick</span>
+        </div>
       </div>
 
       {/* Leaderboard table */}
@@ -54,7 +76,12 @@ export default function Leaderboard({ result, onReset }) {
             <div className="flex items-center gap-2">
               <span className="text-lg">{FLAG[row.team] ?? "🏴"}</span>
               <div>
-                <div className="font-black text-white text-sm">{row.team}</div>
+                <div className="font-black text-white text-sm">
+                  {row.team}
+                  {recTeams.has(row.team) && (
+                    <span className="text-yellow-400 ml-1 text-xs">★</span>
+                  )}
+                </div>
                 <div className="text-xs text-slate-500">{FULL_NAME[row.team] ?? row.team}</div>
               </div>
               {row.is_user_pick && (
@@ -74,6 +101,39 @@ export default function Leaderboard({ result, onReset }) {
           </div>
         ))}
       </div>
+
+      {/* Model performance panel */}
+      {modelPerf && (
+        <div className="rounded-2xl border border-white/10 p-6 space-y-4" style={{ background: "#111827" }}>
+          <div>
+            <h3 className="font-black text-white text-lg">Model Performance</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Trained on Halifax 2024 · Tested on Bermuda 2026
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-slate-400 uppercase tracking-widest">Bermuda RMSE</div>
+            <div className="text-2xl font-black text-white">{modelPerf.bermuda_rmse.toFixed(1)}</div>
+            <div className="text-slate-400 text-sm">pts avg error</div>
+          </div>
+          <div className="space-y-2">
+            {modelPerf.races.map(r => (
+              <div key={`${r.event}-${r.race_label}`}
+                className="flex items-center gap-3 text-xs py-2 border-t border-white/5">
+                <span className="text-slate-500 w-24 shrink-0">
+                  {r.event} {r.race_label.replace("_", " ")}
+                </span>
+                <span className={`font-bold w-14 ${r.hits >= 2 ? "text-green-400" : r.hits === 1 ? "text-yellow-400" : "text-red-400"}`}>
+                  {r.hits}/3 hits
+                </span>
+                <span className="text-slate-500 truncate">
+                  pred: {r.predicted_top3.join(", ")} · actual: {r.actual_top3.join(", ")}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* CTA */}
       <div className="text-center">
