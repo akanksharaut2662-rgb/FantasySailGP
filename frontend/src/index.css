@@ -1,121 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
-  *, *::before, *::after {
-    box-sizing: border-box;
-  }
-
-  html {
-    font-family: 'Inter', system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  body {
-    @apply bg-ocean-900 text-white min-h-screen;
-    background: radial-gradient(ellipse at top, #001b4d 0%, #000e1a 60%, #000509 100%);
-  }
+@keyframes sail-right {
+  0%   { transform: translateX(-160px); }
+  100% { transform: translateX(calc(100vw + 160px)); }
 }
 
-@layer components {
-  /* ── Card ── */
-  .card {
-    @apply rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm;
-  }
-
-  .card-hover {
-    @apply card transition-all duration-200 hover:bg-white/10 hover:border-white/20 hover:scale-[1.02] cursor-pointer;
-  }
-
-  /* ── Buttons ── */
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold
-           transition-all duration-200 px-5 py-2.5 text-sm focus:outline-none
-           focus-visible:ring-2 focus-visible:ring-offset-2;
-  }
-
-  .btn-primary {
-    @apply btn bg-ocean-500 text-white hover:bg-ocean-400 focus-visible:ring-ocean-500
-           active:scale-95 shadow-lg shadow-ocean-500/25;
-  }
-
-  .btn-secondary {
-    @apply btn bg-white/10 text-white hover:bg-white/20 border border-white/10
-           active:scale-95;
-  }
-
-  .btn-teal {
-    @apply btn bg-sail-teal/20 text-sail-teal border border-sail-teal/30
-           hover:bg-sail-teal/30 active:scale-95;
-  }
-
-  .btn-disabled {
-    @apply btn bg-white/5 text-white/30 cursor-not-allowed border border-white/5;
-  }
-
-  /* ── Badge ── */
-  .badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
-  }
-
-  .badge-teal  { @apply badge bg-sail-teal/20  text-sail-teal; }
-  .badge-amber { @apply badge bg-sail-amber/20 text-sail-amber; }
-  .badge-coral { @apply badge bg-sail-coral/20 text-sail-coral; }
-  .badge-blue  { @apply badge bg-ocean-500/20  text-ocean-300; }
-
-  /* ── Section heading ── */
-  .section-title {
-    @apply text-2xl font-bold tracking-tight;
-  }
-
-  .section-sub {
-    @apply text-sm text-white/50;
-  }
-
-  /* ── Stat chip ── */
-  .stat-chip {
-    @apply flex flex-col items-center justify-center rounded-xl p-3
-           bg-white/5 border border-white/10 min-w-[4rem];
-  }
-
-  /* ── Progress bar ── */
-  .progress-bar {
-    @apply h-1.5 rounded-full bg-white/10 overflow-hidden;
-  }
-
-  .progress-fill {
-    @apply h-full rounded-full transition-all duration-700 ease-out;
-  }
-
-  /* ── Animated gradient text ── */
-  .gradient-text {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, #0089ff, #00d4c8);
-  }
+.sail-right {
+  animation: sail-right linear infinite;
+  animation-fill-mode: both;
 }
 
-/* ── Keyframes ── */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+.sail-left {
+  animation: sail-right linear infinite;
+  animation-fill-mode: both;
 }
-
-@keyframes shimmer {
-  from { background-position: -200% center; }
-  to   { background-position:  200% center; }
-}
-
-@keyframes pulse-ring {
-  0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0,137,255,0.5); }
-  70%  { transform: scale(1);    box-shadow: 0 0 0 12px rgba(0,137,255,0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0  rgba(0,137,255,0); }
-}
-
-.animate-fadeUp   { animation: fadeUp 0.4s ease both; }
-.animate-shimmer  {
-  background-size: 200% auto;
-  animation: shimmer 2.5s linear infinite;
-}
-.animate-pulse-ring { animation: pulse-ring 2s ease-in-out infinite; }

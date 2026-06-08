@@ -1,129 +1,203 @@
-/**
- * RaceSelector.jsx
- * Step 1: Let the user choose a race from the full list.
- * Shows event, race number, wind speed, and wind direction as card grid.
- */
+import { useState, useEffect } from "react";
+import { fetchRaces, fetchRecommendations } from "../api";
 
-import { useEffect, useState } from "react";
-import { fetchRaces } from "../api";
-
-const EVENT_COLORS = {
-  Halifax: "text-sail-teal  border-sail-teal/30  bg-sail-teal/10",
-  Bermuda: "text-sail-amber border-sail-amber/30 bg-sail-amber/10",
+const FLAG = {
+  AUS: "🇦🇺", BRA: "🇧🇷", CAN: "🇨🇦", DEN: "🇩🇰", ESP: "🇪🇸",
+  FRA: "🇫🇷", GBR: "🇬🇧", GER: "🇩🇪", ITA: "🇮🇹", NZL: "🇳🇿",
+  SUI: "🇨🇭", SWE: "🇸🇪", USA: "🇺🇸",
 };
 
-function WindArrow({ deg }) {
+const EVENT_LABEL = {
+  Halifax: "OCEAN OF DATA CHALLENGE • HALIFAX",
+  Bermuda: "OCEAN OF DATA CHALLENGE • BERMUDA",
+};
+
+function Compass({ deg }) {
   return (
-    <span
-      className="inline-block text-lg leading-none"
-      style={{ transform: `rotate(${deg}deg)`, display: "inline-block" }}
-      title={`${deg}°`}
-    >
-      ↑
-    </span>
+    <div className="relative w-12 h-12 rounded-full border border-white/20 flex items-center justify-center"
+      style={{ background: "#111827" }}>
+      {/* Cardinal labels */}
+      <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-white/40 text-[8px] font-bold">N</span>
+      <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-white/40 text-[8px] font-bold">S</span>
+      <span className="absolute left-0.5 top-1/2 -translate-y-1/2 text-white/40 text-[8px] font-bold">W</span>
+      <span className="absolute right-0.5 top-1/2 -translate-y-1/2 text-white/40 text-[8px] font-bold">E</span>
+      {/* Needle */}
+      <div className="absolute inset-0 flex items-center justify-center"
+        style={{ transform: `rotate(${deg}deg)` }}>
+        <div className="w-0.5 h-4 rounded-full" style={{ background: "#00d4ff" }} />
+      </div>
+    </div>
   );
 }
 
-export default function RaceSelector({ onSelect }) {
+function Boat({ size = 60, color = "#00d4ff" }) {
+  const s = size;
+  return (
+    <svg viewBox="0 0 60 60" width={s} height={s} fill="none">
+      <polygon points="30,2 30,46 6,46"  fill={color} />
+      <polygon points="30,10 30,42 52,42" fill={color} opacity="0.6" />
+      <ellipse cx="30" cy="50" rx="20" ry="5" fill={color} />
+    </svg>
+  );
+}
+
+const BOATS = [
+  { top: "10%",  size: 56,  opacity: 0.22, duration: "28s", delay: "0s",   color: "#00d4ff" },
+  { top: "30%",  size: 80,  opacity: 0.18, duration: "40s", delay: "6s",   color: "#ffffff" },
+  { top: "52%",  size: 44,  opacity: 0.25, duration: "22s", delay: "3s",   color: "#00d4ff" },
+  { top: "68%",  size: 64,  opacity: 0.20, duration: "35s", delay: "12s",  color: "#ffffff" },
+  { top: "20%",  size: 36,  opacity: 0.20, duration: "18s", delay: "8s",   color: "#00d4ff" },
+  { top: "78%",  size: 52,  opacity: 0.22, duration: "30s", delay: "15s",  color: "#ffffff" },
+  { top: "42%",  size: 72,  opacity: 0.17, duration: "45s", delay: "20s",  color: "#00d4ff" },
+];
+
+function AnimatedBoats() {
+  return (
+    <div className="absolute inset-0 pointer-events-none select-none overflow-hidden">
+      {BOATS.map((b, i) => (
+        <div
+          key={i}
+          className="sail-right"
+          style={{
+            position: "absolute",
+            top: b.top,
+            left: 0,
+            opacity: b.opacity,
+            animationDuration: b.duration,
+            animationDelay: b.delay,
+          }}
+        >
+          <Boat size={b.size} color={b.color} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function RaceSelector({ onRaceSelected }) {
   const [races, setRaces] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filter, setFilter] = useState("All");
+  const [selecting, setSelecting] = useState(null);
 
   useEffect(() => {
-    fetchRaces()
-      .then(setRaces)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    fetchRaces().then(data => { setRaces(data); setLoading(false); });
   }, []);
 
-  const events = ["All", ...new Set(races.map((r) => r.event))];
-  const filtered = filter === "All" ? races : races.filter((r) => r.event === filter);
+  async function handleSelect(race) {
+    if (selecting) return;
+    setSelecting(`${race.event}-${race.race_label}`);
+    const recData = await fetchRecommendations(race.event, race.race_label);
+    onRaceSelected(race, recData.recommendations);
+  }
+
+  const halifax = races.filter(r => r.event === "Halifax");
+  const bermuda = races.filter(r => r.event === "Bermuda");
 
   return (
-    <div className="animate-fadeUp max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="mb-8 text-center">
-        <h1 className="text-4xl font-black tracking-tight gradient-text mb-2">
-          SailGP Fantasy Predictor
-        </h1>
-        <p className="text-white/50 text-sm">
-          Fantasy football has 45&nbsp;M players. Fantasy sailing has zero. <span className="text-white/80">Until now.</span>
-        </p>
+    <div>
+      {/* Hero */}
+      <div className="relative overflow-hidden py-20 px-6 text-center" style={{ background: "#0a0e1a" }}>
+        <AnimatedBoats />
+        <div className="relative z-10 max-w-2xl mx-auto space-y-6">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-cyan-400/40 text-cyan-400 text-xs font-semibold tracking-widest">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            SEASON 5 • LIVE TELEMETRY
+          </div>
+          <h1 className="text-5xl sm:text-6xl font-black leading-tight text-white">
+            Fantasy sailing<br />
+            has <span style={{ color: "#00d4ff" }}>zero players.</span><br />
+            Until now.
+          </h1>
+          <p className="text-slate-400 text-lg">
+            Pick your race. Build your lineup. Score from real telemetry.
+          </p>
+        </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 mb-6">
-        {events.map((e) => (
-          <button
-            key={e}
-            onClick={() => setFilter(e)}
-            className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all
-              ${filter === e
-                ? "bg-ocean-500 text-white shadow-lg shadow-ocean-500/25"
-                : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"}`}
-          >
-            {e}
-          </button>
+      {/* Race lists */}
+      <div className="max-w-5xl mx-auto px-6 py-10 space-y-10">
+        {loading ? (
+          <div className="text-center text-slate-500 animate-pulse py-20">Loading races...</div>
+        ) : (
+          <>
+            <RaceGroup title="Halifax 2024" subtitle="Training dataset" races={halifax} selecting={selecting} onSelect={handleSelect} />
+            <RaceGroup title="Bermuda 2026" subtitle="Test dataset — unseen by the model" races={bermuda} selecting={selecting} onSelect={handleSelect} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RaceGroup({ title, subtitle, races, selecting, onSelect }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-sm font-black tracking-widest text-white uppercase">{title}</h2>
+          <p className="text-xs text-slate-500">{subtitle}</p>
+        </div>
+        <span className="text-xs text-slate-500">{races.length} AVAILABLE</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {races.map(race => (
+          <RaceCard key={`${race.event}-${race.race_label}`} race={race} selecting={selecting} onSelect={onSelect} />
         ))}
       </div>
-
-      {/* States */}
-      {loading && (
-        <div className="flex items-center justify-center h-48 text-white/40">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-ocean-400 border-t-transparent" />
-        </div>
-      )}
-      {error && (
-        <div className="card p-6 border-sail-coral/30 bg-sail-coral/10 text-sail-coral">
-          ⚠ Could not load races: {error}
-        </div>
-      )}
-
-      {/* Race grid */}
-      {!loading && !error && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((race) => (
-            <button
-              key={`${race.event}-${race.race_label}`}
-              onClick={() => onSelect(race)}
-              className="card-hover p-5 text-left group"
-            >
-              {/* Event badge */}
-              <span className={`badge mb-3 ${EVENT_COLORS[race.event] ?? "badge-blue"}`}>
-                {race.event}
-              </span>
-
-              <h2 className="text-lg font-bold mb-1 group-hover:text-ocean-300 transition-colors">
-                {race.race_label.replace("_", " ")}
-              </h2>
-
-              <div className="flex items-center gap-3 text-sm text-white/60 mb-4">
-                <span>{new Date(race.race_start_utc).toLocaleDateString("en-CA")}</span>
-                <span>·</span>
-                <span>{race.num_boats} boats</span>
-              </div>
-
-              {/* Wind info */}
-              <div className="flex gap-4">
-                <div className="stat-chip flex-1">
-                  <span className="text-xs text-white/40 mb-0.5">Wind</span>
-                  <span className="text-base font-bold text-sail-teal">
-                    {race.avg_tws_km_h.toFixed(1)}<span className="text-xs font-normal ml-0.5">km/h</span>
-                  </span>
-                </div>
-                <div className="stat-chip flex-1">
-                  <span className="text-xs text-white/40 mb-0.5">Dir</span>
-                  <span className="text-base font-bold flex items-center gap-1">
-                    <WindArrow deg={race.avg_twd_deg} />
-                    {Math.round(race.avg_twd_deg)}°
-                  </span>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
+  );
+}
+
+function RaceCard({ race, selecting, onSelect }) {
+  const key = `${race.event}-${race.race_label}`;
+  const isSelecting = selecting === key;
+  const disabled = selecting !== null;
+
+  return (
+    <button
+      onClick={() => onSelect(race)}
+      disabled={disabled}
+      className={`text-left p-5 rounded-2xl border w-full transition-all duration-200
+        ${isSelecting ? "border-cyan-400 ring-1 ring-cyan-400/50" : "border-white/10 hover:border-cyan-400/50"}
+        ${disabled && !isSelecting ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
+      `}
+      style={{ background: "#111827" }}
+    >
+      {/* Event name */}
+      <p className="text-xs tracking-widest text-slate-500 uppercase mb-1">
+        {EVENT_LABEL[race.event] ?? race.event}
+      </p>
+
+      {/* Race name */}
+      <h3 className="text-lg font-bold text-white mb-4">
+        {race.event} • {race.race_label}
+      </h3>
+
+      {/* Wind info */}
+      <div className="flex items-center gap-4 mb-4">
+        <Compass deg={race.avg_twd_deg} />
+        <div>
+          <span className="text-3xl font-black" style={{ color: "#00d4ff" }}>{race.avg_tws_km_h}</span>
+          <span className="text-xs text-slate-400 ml-1">KM/H WIND</span>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-white/10 pt-3 flex items-center justify-between">
+        <div className="flex gap-1">
+          {race.teams.slice(0, 5).map(t => (
+            <span key={t} className="text-base">{FLAG[t] ?? "🏴"}</span>
+          ))}
+          {race.teams.length > 5 && (
+            <span className="text-xs text-slate-400 ml-1">+{race.teams.length - 5}</span>
+          )}
+        </div>
+        <span className="text-xs text-slate-400 font-semibold">{race.num_boats} BOATS</span>
+      </div>
+
+      {isSelecting && (
+        <p className="mt-3 text-xs text-cyan-400 animate-pulse">Getting AI picks...</p>
+      )}
+    </button>
   );
 }

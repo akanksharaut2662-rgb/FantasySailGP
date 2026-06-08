@@ -1,103 +1,87 @@
-/**
- * Leaderboard.jsx
- * Step 5: Full leaderboard ranked by total_pts.
- * Highlights user picks (solid border) and optimizer picks (dashed border).
- */
-
-const FLAG_EMOJIS = {
-  AUS: "🇦🇺", CAN: "🇨🇦", DEN: "🇩🇰", ESP: "🇪🇸",
-  FRA: "🇫🇷", GBR: "🇬🇧", GER: "🇩🇪", NZL: "🇳🇿",
-  SUI: "🇨🇭", USA: "🇺🇸", SWE: "🇸🇪", JPN: "🇯🇵",
+const FLAG = {
+  AUS: "🇦🇺", BRA: "🇧🇷", CAN: "🇨🇦", DEN: "🇩🇰", ESP: "🇪🇸",
+  FRA: "🇫🇷", GBR: "🇬🇧", GER: "🇩🇪", ITA: "🇮🇹", NZL: "🇳🇿",
+  SUI: "🇨🇭", SWE: "🇸🇪", USA: "🇺🇸",
 };
 
-const RANK_BG = ["bg-yellow-500/10 border-yellow-500/30", "bg-slate-400/10 border-slate-400/30", "bg-amber-700/10 border-amber-700/30"];
+const FULL_NAME = {
+  AUS: "Australia", BRA: "Brazil", CAN: "Canada", DEN: "Denmark",
+  ESP: "Spain", FRA: "France", GBR: "Great Britain", GER: "Germany",
+  ITA: "Italy", NZL: "New Zealand", SUI: "Switzerland", SWE: "Sweden", USA: "United States",
+};
 
-export default function Leaderboard({ scoreResult, recommendations, onReset }) {
-  if (!scoreResult) return null;
+function RankCell({ rank }) {
+  if (rank === 1) return <span className="text-xl">🏆</span>;
+  return <span className="text-sm font-bold text-slate-400">#{rank}</span>;
+}
 
-  const userSet = new Set(scoreResult.user_teams);
-  const recSet = new Set((recommendations?.recommendations ?? []).map((r) => r.team));
-  const sorted = [...scoreResult.leaderboard].sort((a, b) => b.total_pts - a.total_pts);
+export default function Leaderboard({ result, onReset }) {
+  if (!result) return null;
+
+  const sorted = [...result.leaderboard].sort((a, b) => b.total_pts - a.total_pts);
 
   return (
-    <div className="animate-fadeUp max-w-2xl mx-auto">
-      <p className="text-xs text-white/30 mb-6">
-        {scoreResult.event} › {scoreResult.race_label.replace("_", " ")} › Leaderboard
-      </p>
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      {/* Your score hero */}
+      <div className="rounded-2xl border border-cyan-400/30 p-8 text-center"
+        style={{ background: "#111827" }}>
+        <p className="text-xs tracking-widest text-slate-500 uppercase mb-2">Your Team Scored</p>
+        <div className="text-8xl font-black leading-none"
+          style={{ color: "#00d4ff", textShadow: "0 0 60px rgba(0,212,255,0.6)" }}>
+          {result.user_total_score}
+        </div>
+        <span className="text-2xl font-bold text-slate-400">pts</span>
+      </div>
 
-      {/* Hero score */}
-      <div className="card p-6 mb-6 text-center border-ocean-500/30 bg-ocean-500/10">
-        <p className="text-white/50 text-sm mb-1">Your team scored</p>
-        <p className="text-6xl font-black gradient-text mb-2">{scoreResult.user_total_score}</p>
-        <div className="flex justify-center gap-2 flex-wrap">
-          {scoreResult.user_teams.map((t) => (
-            <span key={t} className="badge badge-blue">
-              {FLAG_EMOJIS[t] ?? "🏳"} {t}
-            </span>
+      {/* Leaderboard table */}
+      <div className="rounded-2xl border border-white/10 overflow-hidden" style={{ background: "#111827" }}>
+        {/* Table header */}
+        <div className="grid grid-cols-[60px_1fr_48px_48px_48px_64px_48px_64px] px-5 py-3 border-b border-white/10">
+          {["RANK", "TEAM", "POS", "SPD", "OT", "CLEAN", "VMG", "TOTAL"].map(h => (
+            <span key={h} className="text-xs text-slate-500 font-semibold tracking-wider">{h}</span>
           ))}
         </div>
-      </div>
 
-      {/* Legend */}
-      <div className="flex gap-4 text-xs text-white/40 mb-4">
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded border-2 border-ocean-400 bg-ocean-500/20" /> Your pick
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded border-2 border-dashed border-sail-teal" /> AI pick
-        </span>
-      </div>
+        {/* Rows */}
+        {sorted.map((row, i) => (
+          <div
+            key={row.team}
+            className={`grid grid-cols-[60px_1fr_48px_48px_48px_64px_48px_64px] px-5 py-4 border-b border-white/5 items-center
+              ${row.is_user_pick ? "bg-cyan-400/5" : ""}`}
+          >
+            <div><RankCell rank={i + 1} /></div>
 
-      {/* Table */}
-      <div className="space-y-2 mb-8">
-        {sorted.map((row, idx) => {
-          const isUser = userSet.has(row.team);
-          const isRec = recSet.has(row.team);
-          const rankBg = idx < 3 ? RANK_BG[idx] : "bg-white/3 border-white/8";
-
-          return (
-            <div
-              key={row.team}
-              className={`flex items-center gap-4 p-3 rounded-xl border transition-all
-                ${rankBg}
-                ${isUser ? "border-ocean-400 bg-ocean-500/15 shadow shadow-ocean-500/10" : ""}
-                ${isRec && !isUser ? "border-dashed border-sail-teal/40" : ""}
-              `}
-            >
-              {/* Rank */}
-              <span className="w-6 text-center text-sm font-bold text-white/40">
-                {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
-              </span>
-
-              {/* Flag + team */}
-              <span className="text-xl">{FLAG_EMOJIS[row.team] ?? "🏳"}</span>
-              <span className="flex-1 font-semibold text-sm">
-                {row.team}
-                {isUser && <span className="ml-1.5 text-ocean-300 text-xs">● you</span>}
-                {isRec && <span className="ml-1.5 text-sail-teal text-xs">⭐ AI</span>}
-              </span>
-
-              {/* Category breakdown (compact) */}
-              <div className="hidden sm:flex gap-2 text-xs text-white/30">
-                <span title="Position">🏆{row.position_pts}</span>
-                <span title="Speed">💨{row.speed_pts}</span>
-                <span title="Overtakes">⚡{row.overtake_pts}</span>
-                <span title="Clean">✅{row.clean_sailing_pts}</span>
-                <span title="VMG">🎯{row.vmg_pts}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{FLAG[row.team] ?? "🏴"}</span>
+              <div>
+                <div className="font-black text-white text-sm">{row.team}</div>
+                <div className="text-xs text-slate-500">{FULL_NAME[row.team] ?? row.team}</div>
               </div>
-
-              {/* Total */}
-              <span className={`font-black text-lg ${isUser ? "text-ocean-300" : "text-white/70"}`}>
-                {row.total_pts}
-              </span>
+              {row.is_user_pick && (
+                <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold"
+                  style={{ background: "rgba(0,212,255,0.15)", color: "#00d4ff" }}>
+                  YOUR PICK
+                </span>
+              )}
             </div>
-          );
-        })}
+
+            <span className="text-sm text-slate-300">{row.position_pts}</span>
+            <span className="text-sm text-slate-300">{row.speed_pts}</span>
+            <span className="text-sm text-slate-300">{row.overtake_pts}</span>
+            <span className="text-sm text-slate-300">{row.clean_sailing_pts}</span>
+            <span className="text-sm text-slate-300">{row.vmg_pts}</span>
+            <span className="text-sm font-black" style={{ color: "#00d4ff" }}>{row.total_pts}</span>
+          </div>
+        ))}
       </div>
 
-      <div className="flex justify-center">
-        <button onClick={onReset} className="btn-secondary text-base px-7 py-3">
-          ← Try Another Race
+      {/* CTA */}
+      <div className="text-center">
+        <button
+          onClick={onReset}
+          className="px-10 py-4 rounded-full font-black text-sm tracking-widest border border-white/20 text-white transition-all hover:border-cyan-400 hover:text-cyan-400"
+          style={{ background: "transparent" }}>
+          TRY ANOTHER RACE →
         </button>
       </div>
     </div>
