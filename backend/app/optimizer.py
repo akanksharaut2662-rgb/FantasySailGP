@@ -10,103 +10,111 @@ import numpy as np
 import pandas as pd
 import joblib
 from pathlib import Path
+
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_squared_error
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from .data_loader import load_metadata, list_races
+from .data_loader import load_metadata
 from .scoring_engine import score_race
 
-MODEL_PATH = Path("models/optimizer.pkl")
+# Where the trained model gets saved/loaded
+MODEL_PATH = Path(__file__).parent.parent.parent / "models" / "optimizer.pkl"
+
+# Feature columns fed into the model
+FEATURES = ["team", "avg_tws_km_h", "twd_sin", "twd_cos"]
 
 
 # ---------------------------------------------------------------------------
-# Feature engineering helpers
-# ---------------------------------------------------------------------------
-
-def add_wind_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add sin/cos transformation of wind direction for circular feature handling."""
-    df = df.copy()
-    df["twd_sin"] = np.sin(np.radians(df["avg_twd_deg"]))
-    df["twd_cos"] = np.cos(np.radians(df["avg_twd_deg"]))
-    return df
-
-
-FEATURE_COLS = ["team", "avg_tws_km_h", "twd_sin", "twd_cos"]
-TARGET_COL = "fantasy_points"
-
-
-# ---------------------------------------------------------------------------
-# Pipeline builder
-# ---------------------------------------------------------------------------
-
-def build_pipeline() -> Pipeline:
-    """Create the sklearn Pipeline with OHE team + scaled wind features + Ridge."""
-    preprocessor = ColumnTransformer([
-        ("team_ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False), ["team"]),
-        ("wind_scaler", StandardScaler(), ["avg_tws_km_h", "twd_sin", "twd_cos"]),
-    ])
-    return Pipeline([
-        ("preprocessor", preprocessor),
-        ("regressor", Ridge(alpha=1.0)),
-    ])
-
-
-# ---------------------------------------------------------------------------
-# Training data construction
+# Training data
 # ---------------------------------------------------------------------------
 
 def build_training_data(event: str) -> pd.DataFrame:
-    """Build one row per (team, race) with wind conditions and fantasy points as target."""
+    """
+    For each race in an event, score every team and combine with wind conditions.
+
+    Returns one row per (team, race) with columns:
+      team, avg_tws_km_h, twd_sin, twd_cos, fantasy_points
+    """
     metadata = load_metadata(event)
     rows = []
+
     for _, race in metadata.iterrows():
         race_label = race["race_label"]
+        avg_tws = float(race["avg_tws_km_h"])
+        avg_twd = float(race["avg_twd_deg"])
+
         try:
             scores_df = score_race(event, race_label)
         except Exception as e:
             print(f"  Skipping {event}/{race_label}: {e}")
             continue
+
         for _, row in scores_df.iterrows():
             rows.append({
                 "team": row["team"],
-                "avg_tws_km_h": race["avg_tws_km_h"],
-                "avg_twd_deg": race["avg_twd_deg"],
-                TARGET_COL: row["total_pts"],
+                "avg_tws_km_h": avg_tws,
+                # Wind direction is circular (359° and 1° are close, not far apart).
+                # sin/cos encoding fixes this — the model understands circular numbers.
+                "twd_sin": np.sin(np.radians(avg_twd)),
+                "twd_cos": np.cos(np.radians(avg_twd)),
+                "fantasy_points": float(row["total_pts"]),
             })
+
     return pd.DataFrame(rows)
 
 
 # ---------------------------------------------------------------------------
-# Training
+# Pipeline
+# ---------------------------------------------------------------------------
+
+def build_pipeline() -> Pipeline:
+    """
+    Builds the sklearn ML pipeline:
+      - One-hot encodes team names (turns 'AUS' into a column of 0s and 1s)
+      - Scales wind speed and direction to a standard range
+      - Runs Ridge Regression to predict fantasy points
+    """
+    preprocessor = ColumnTransformer([
+        # Team name → a column per team (AUS=1 rest=0, GBR=1 rest=0, etc.)
+        ("team_ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False), ["team"]),
+        # Wind speed and direction → scaled to mean=0, std=1
+        ("wind_scaler", StandardScaler(), ["avg_tws_km_h", "twd_sin", "twd_cos"]),
+    ])
+
+    return Pipeline([
+        ("preprocessor", preprocessor),
+        # Ridge Regression: like linear regression but handles small datasets better
+        ("regressor", Ridge(alpha=1.0)),
+    ])
+
+
+# ---------------------------------------------------------------------------
+# Training (called by train_model.py)
 # ---------------------------------------------------------------------------
 
 def train_optimizer(save_path: Path = MODEL_PATH) -> Pipeline:
-    """Train Ridge Regression on Halifax data, validate on Bermuda, serialize model."""
-    from sklearn.metrics import mean_squared_error
-
+    """Train on Halifax, validate on Bermuda, save model."""
     print("Building Halifax training data...")
-    train_df = add_wind_features(build_training_data("Halifax"))
-    X_train = train_df[FEATURE_COLS]
-    y_train = train_df[TARGET_COL]
+    train_df = build_training_data("Halifax")
+    X_train = train_df[FEATURES]
+    y_train = train_df["fantasy_points"]
 
     pipeline = build_pipeline()
     pipeline.fit(X_train, y_train)
     print(f"  Trained on {len(train_df)} rows.")
 
     print("Validating on Bermuda...")
-    test_df = add_wind_features(build_training_data("Bermuda"))
-    X_test = test_df[FEATURE_COLS]
-    y_test = test_df[TARGET_COL]
-    y_pred = pipeline.predict(X_test)
-    rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
+    test_df = build_training_data("Bermuda")
+    y_pred = pipeline.predict(test_df[FEATURES])
+    rmse = float(np.sqrt(mean_squared_error(test_df["fantasy_points"], y_pred)))
     print(f"  Bermuda test RMSE: {rmse:.1f} pts")
 
     save_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(pipeline, save_path)
     print(f"  Model saved to {save_path}")
-
     return pipeline
 
 
@@ -122,41 +130,41 @@ def recommend_teams(
     model_path: Path = MODEL_PATH,
 ) -> list[dict]:
     """
-    Returns top_n teams ranked by predicted fantasy points.
-    Each item: {"team": str, "predicted_score": float}
+    Given wind conditions and available teams, return the top_n predicted teams.
+    Each result is: {"team": "AUS", "predicted_score": 87.3}
     """
     pipeline: Pipeline = joblib.load(model_path)
-    rows = [
-        {
-            "team": t,
-            "avg_tws_km_h": avg_tws_km_h,
-            "twd_sin": np.sin(np.radians(avg_twd_deg)),
-            "twd_cos": np.cos(np.radians(avg_twd_deg)),
-        }
-        for t in available_teams
-    ]
+
+    rows = [{
+        "team": t,
+        "avg_tws_km_h": avg_tws_km_h,
+        "twd_sin": np.sin(np.radians(avg_twd_deg)),
+        "twd_cos": np.cos(np.radians(avg_twd_deg)),
+    } for t in available_teams]
+
     df = pd.DataFrame(rows)
-    df["predicted_score"] = pipeline.predict(df[FEATURE_COLS])
+    df["predicted_score"] = pipeline.predict(df[FEATURES])
+
     return (
         df[["team", "predicted_score"]]
         .sort_values("predicted_score", ascending=False)
         .head(top_n)
+        .assign(predicted_score=lambda x: x["predicted_score"].round(1))
         .to_dict(orient="records")
     )
 
 
+# ---------------------------------------------------------------------------
+# Performance evaluation (used by /api/optimizer/performance endpoint)
+# ---------------------------------------------------------------------------
+
 def get_optimizer_performance(model_path: Path = MODEL_PATH) -> dict:
     """
-    Compute model performance across all races in both events.
-    Returns dict shaped for the /api/optimizer/performance response.
+    Compute optimizer top-3 hit rate and RMSE across all races.
+    Returns dict shaped for the OptimizerPerformanceResponse model.
     """
-    from sklearn.metrics import mean_squared_error
-
     pipeline: Pipeline = joblib.load(model_path)
-
     results = []
-    all_y_true = []
-    all_y_pred = []
 
     for event in ["Halifax", "Bermuda"]:
         metadata = load_metadata(event)
@@ -168,25 +176,20 @@ def get_optimizer_performance(model_path: Path = MODEL_PATH) -> dict:
                 continue
 
             teams = scores_df["team"].tolist()
-            rows = [
-                {
-                    "team": t,
-                    "avg_tws_km_h": race["avg_tws_km_h"],
-                    "twd_sin": np.sin(np.radians(race["avg_twd_deg"])),
-                    "twd_cos": np.cos(np.radians(race["avg_twd_deg"])),
-                }
-                for t in teams
-            ]
+            rows = [{
+                "team": t,
+                "avg_tws_km_h": float(race["avg_tws_km_h"]),
+                "twd_sin": np.sin(np.radians(float(race["avg_twd_deg"]))),
+                "twd_cos": np.cos(np.radians(float(race["avg_twd_deg"]))),
+            } for t in teams]
+
             df = pd.DataFrame(rows)
-            df["predicted_score"] = pipeline.predict(df[FEATURE_COLS])
+            df["predicted_score"] = pipeline.predict(df[FEATURES])
             df["actual_score"] = scores_df["total_pts"].values
 
             predicted_top3 = df.nlargest(3, "predicted_score")["team"].tolist()
-            actual_top3 = df.nlargest(3, "actual_score")["team"].tolist()
+            actual_top3    = df.nlargest(3, "actual_score")["team"].tolist()
             hits = len(set(predicted_top3) & set(actual_top3))
-
-            all_y_true.extend(df["actual_score"].tolist())
-            all_y_pred.extend(df["predicted_score"].tolist())
 
             results.append({
                 "event": event,
@@ -196,13 +199,11 @@ def get_optimizer_performance(model_path: Path = MODEL_PATH) -> dict:
                 "hits": hits,
             })
 
-    # RMSE only on Bermuda rows (test set)
-    bermuda_rows = [r for r in results if r["event"] == "Bermuda"]
-    if bermuda_rows:
-        test_df_all = add_wind_features(build_training_data("Bermuda"))
-        y_t = test_df_all[TARGET_COL].values
-        y_p = pipeline.predict(test_df_all[FEATURE_COLS])
-        bermuda_rmse = float(np.sqrt(mean_squared_error(y_t, y_p)))
+    # Bermuda RMSE (out-of-sample)
+    test_df = build_training_data("Bermuda")
+    if len(test_df) > 0:
+        y_pred = pipeline.predict(test_df[FEATURES])
+        bermuda_rmse = float(np.sqrt(mean_squared_error(test_df["fantasy_points"], y_pred)))
     else:
         bermuda_rmse = 0.0
 

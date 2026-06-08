@@ -1,3 +1,6 @@
+# Raw data — too large for git (120MB+)
+DataChallenge_Export/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -27,6 +30,7 @@ models/optimizer.pkl
 
 # Node
 frontend/node_modules/
+node_modules/
 frontend/dist/
 frontend/.vite/
 
