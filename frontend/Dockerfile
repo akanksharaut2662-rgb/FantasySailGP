@@ -4,13 +4,13 @@ WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
 
 # Expose Vite dev server port
-EXPOSE 5173
+EXPOSE 8080
 
 # Start Vite dev server on 0.0.0.0 to allow external access
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

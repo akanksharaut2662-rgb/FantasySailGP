@@ -45,7 +45,8 @@ def get_cached_scores(event: str, race_label: str) -> list[dict] | None:
     conn.close()
     if not rows:
         return None
-    return [dict(r) for r in rows]
+    import math
+    return [{k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in dict(r).items()} for r in rows]
 
 
 def cache_scores(event: str, race_label: str, scores: list[dict]) -> None:
@@ -73,6 +74,8 @@ def get_or_compute_scores(event: str, race_label: str) -> list[dict]:
         return cached
     from .scoring_engine import score_race
     scores = score_race(event, race_label).to_dict(orient="records")
+    import math
+    scores = [{k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in row.items()} for row in scores]
     cache_scores(event, race_label, scores)
     return scores
 
