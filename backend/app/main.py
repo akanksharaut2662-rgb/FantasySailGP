@@ -21,7 +21,7 @@ from .models import (
     TeamRecommendation,
     TeamScore,
 )
-from .optimizer import get_optimizer_performance, recommend_teams
+from .optimizer import get_feature_importance, get_optimizer_performance, recommend_teams
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -206,6 +206,22 @@ def get_gps(event: str, race_label: str):
             "time_s": active["TIME_RACE_s"].tolist() if "TIME_RACE_s" in active.columns else [],
         })
     return result
+
+
+# ---------------------------------------------------------------------------
+# GET /api/optimizer/features
+# ---------------------------------------------------------------------------
+
+@app.get("/api/optimizer/features")
+def optimizer_features():
+    """Return Ridge model feature coefficients — team weights + wind weights."""
+    try:
+        return get_feature_importance()
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=503,
+            detail="Model not trained yet. Run: cd backend && python train_model.py",
+        )
 
 
 # ---------------------------------------------------------------------------

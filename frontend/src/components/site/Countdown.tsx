@@ -39,7 +39,8 @@ function FlipDigit({ value }: { value: number }) {
 }
 
 export function Countdown() {
-  const target = new Date(Date.now() + 4 * 86400000 + 7 * 3600000 + 23 * 60000);
+  // Count down to Season 6 opener — September 2026
+  const target = new Date("2026-09-12T10:00:00Z");
   const { d, h, m, s } = useCountdown(target);
   const cells = [
     { l: "Days", v: d }, { l: "Hours", v: h }, { l: "Minutes", v: m }, { l: "Seconds", v: s },
@@ -50,9 +51,9 @@ export function Countdown() {
       <div className="mx-auto max-w-7xl">
         <div className="grid lg:grid-cols-[1fr_1.1fr] gap-16 lg:gap-24 items-start">
           <div>
-            <Reveal as="p" className="eyebrow">Round Seven</Reveal>
+            <Reveal as="p" className="eyebrow">Ocean of Data Challenge</Reveal>
             <Reveal as="h2" delay={0.1} className="mt-6 font-display text-6xl md:text-8xl leading-[0.9] text-ink">
-              Sydney<br/><span className="italic text-teal">Harbour</span>
+              Bermuda<br /><span className="italic text-teal">2026</span>
             </Reveal>
             <motion.div
               initial={{ scaleX: 0 }}
@@ -63,8 +64,10 @@ export function Countdown() {
             />
             <dl className="grid grid-cols-2 gap-y-6 max-w-md text-sm">
               {[
-                ["Date", "14 March"], ["Start", "14:00 AEDT"],
-                ["Course", "Short, technical"], ["Fleet", "10 nations"],
+                ["Dataset", "Bermuda 2026"],
+                ["Role", "Out-of-sample test"],
+                ["Course", "Harbour circuit"],
+                ["Fleet", "9 nations"],
               ].map(([k, v], i) => (
                 <Reveal key={k} delay={0.35 + i * 0.08}>
                   <dt className="eyebrow !text-[10px]">{k}</dt>
@@ -73,9 +76,9 @@ export function Countdown() {
               ))}
             </dl>
             <Reveal delay={0.7}>
-              <a href="#cta" className="mt-12 inline-flex items-center gap-3 text-sm text-ink group">
+              <a href="/app" className="mt-12 inline-flex items-center gap-3 text-sm text-ink group">
                 <span className="h-px w-10 bg-ink transition-all duration-500 group-hover:w-20" />
-                Lock in your team
+                Explore the dataset
               </a>
             </Reveal>
           </div>
@@ -83,7 +86,7 @@ export function Countdown() {
           <Reveal delay={0.15}>
             <div className="rounded-sm bg-white/60 backdrop-blur-sm border border-border p-8 md:p-10 shadow-[var(--shadow-soft)]">
               <div className="flex items-baseline justify-between">
-                <p className="eyebrow">Countdown</p>
+                <p className="eyebrow">Until Season 6</p>
                 <span className="font-mono text-[10px] text-ink/50 flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
                   live
@@ -100,13 +103,13 @@ export function Countdown() {
                 ))}
               </div>
               <div className="hairline my-8" />
-              <p className="eyebrow mb-5">Course Conditions</p>
+              <p className="eyebrow mb-5">Halifax 2024 Conditions</p>
               <ul className="space-y-4">
                 {[
-                  { k: "Wind", v: "16–22 kts SE" },
-                  { k: "Swell", v: "0.8 m" },
-                  { k: "Sky", v: "Partly cloudy · 22°" },
-                  { k: "Current", v: "1.2 kts with course" },
+                  { k: "Avg Wind", v: "18–28 km/h" },
+                  { k: "Direction", v: "Variable SW" },
+                  { k: "Training Races", v: "6 events" },
+                  { k: "Model", v: "Ridge Regression" },
                 ].map((r, i) => (
                   <motion.li
                     key={r.k}

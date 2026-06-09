@@ -3,10 +3,26 @@ import { motion } from "motion/react";
 import { Reveal, Stagger, StaggerItem } from "./motion-primitives";
 
 const steps = [
-  { n: "I", t: "Draft", d: "Pick five sailors and a captain from the global pool. Budget caps and form ratings keep every decision honest." },
-  { n: "II", t: "Read", d: "Wind, swell, current and crew chemistry feed the model. Adjust before the gun fires." },
-  { n: "III", t: "Score", d: "Roundings, foiling time, tacking efficiency and podiums. Points stream in live." },
-  { n: "IV", t: "Climb", d: "Global, friends and country boards update through the season." },
+  {
+    n: "I",
+    t: "Pick Teams",
+    d: "Choose three SailGP teams from the competing fleet. No budget caps, no sailor contracts — just nation vs nation at 50 knots.",
+  },
+  {
+    n: "II",
+    t: "Read the Wind",
+    d: "Wind speed and direction feed a Ridge Regression model trained on Halifax 2024 telemetry. It predicts which teams thrive in those exact conditions.",
+  },
+  {
+    n: "III",
+    t: "Score",
+    d: "Five categories from real GPS data: finishing position, wind-normalised speed, overtakes, clean sailing and VMG consistency. 125 points maximum per team.",
+  },
+  {
+    n: "IV",
+    t: "See Who Called It",
+    d: "Compare your lineup against the AI's picks and the field. Track model accuracy race by race across Halifax and Bermuda — including out-of-sample validation.",
+  },
 ];
 
 export function HowItWorks() {

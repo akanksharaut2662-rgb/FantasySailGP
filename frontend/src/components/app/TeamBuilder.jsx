@@ -1,5 +1,11 @@
-import { useState } from "react";
-import { fetchScore } from "../../lib/api";
+import { useState, useEffect } from "react";
+import { fetchScore, fetchRaces, fetchOptimizerPerformance } from "../../lib/api";
+
+function windCategory(kmh) {
+  if (kmh < 18) return "light";
+  if (kmh < 28) return "moderate";
+  return "heavy";
+}
 
 const FLAG = {
   AUS: "🇦🇺", BRA: "🇧🇷", CAN: "🇨🇦", DEN: "🇩🇰", ESP: "🇪🇸",
@@ -35,13 +41,48 @@ function BoatIcon({ selected, recommended }) {
   );
 }
 
-export default function TeamBuilder({ race, recommendations, onConfirm }) {
-  const [selected, setSelected] = useState([]);
+export default function TeamBuilder({ race, recommendations, onConfirm, initialSelected = [] }) {
+  const [selected, setSelected] = useState(() => initialSelected.slice(0, 3));
   const [loading, setLoading] = useState(false);
+  const [scoreError, setScoreError] = useState(null);
+  const [windHistory, setWindHistory] = useState({});
+
+  useEffect(() => {
+    if (!race || recommendations.length === 0) return;
+    const currentCat = windCategory(race.avg_tws_km_h);
+    const recTeamList = recommendations.map(r => r.team);
+
+    Promise.all([fetchRaces(), fetchOptimizerPerformance()])
+      .then(([allRaces, perfData]) => {
+        const similarKeys = new Set(
+          allRaces
+            .filter(r =>
+              windCategory(r.avg_tws_km_h) === currentCat &&
+              !(r.event === race.event && r.race_label === race.race_label)
+            )
+            .map(r => `${r.event}-${r.race_label}`)
+        );
+
+        const history = {};
+        for (const team of recTeamList) {
+          let wins = 0, total = 0;
+          for (const pr of perfData.races) {
+            if (similarKeys.has(`${pr.event}-${pr.race_label}`)) {
+              total++;
+              if (pr.actual_top3.includes(team)) wins++;
+            }
+          }
+          history[team] = { wins, total, category: currentCat };
+        }
+        setWindHistory(history);
+      })
+      .catch(() => {});
+  }, [race, recommendations]);
 
   if (!race) return null;
 
   const recTeams = new Set(recommendations.map(r => r.team));
+  const recByTeam = Object.fromEntries(recommendations.map(r => [r.team, r]));
 
   function toggle(team) {
     if (selected.includes(team)) {
@@ -52,9 +93,15 @@ export default function TeamBuilder({ race, recommendations, onConfirm }) {
   }
 
   async function handleRunRace() {
+    setScoreError(null);
     setLoading(true);
-    const result = await fetchScore(race.event, race.race_label, selected);
-    onConfirm(selected, result);
+    try {
+      const result = await fetchScore(race.event, race.race_label, selected);
+      onConfirm(selected, result);
+    } catch (e) {
+      setScoreError("Scoring failed — check the backend is running and try again.");
+      setLoading(false);
+    }
   }
 
   return (
@@ -80,9 +127,18 @@ export default function TeamBuilder({ race, recommendations, onConfirm }) {
 
       {/* AI recommendation note */}
       {recTeams.size > 0 && (
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        <div className={`flex items-center gap-3 rounded-sm border px-4 py-3 ${
+          selected.length === 3 && selected.every(t => recTeams.has(t))
+            ? "border-teal/20 bg-teal/5"
+            : "border-border bg-secondary/20"
+        }`}>
           <span className="inline-block w-2 h-2 rounded-full bg-teal shrink-0" />
-          <span>Teams with a <span className="text-teal">teal border</span> are AI-recommended for this race.</span>
+          <span className="text-sm text-ink/70">
+            {selected.length === 3 && selected.every(t => recTeams.has(t))
+              ? <>AI lineup pre-loaded — <span className="text-teal">run as-is</span>, or swap any pick below.</>
+              : <>Teams with a <span className="text-teal">teal border</span> are AI-recommended.</>
+            }
+          </span>
         </div>
       )}
 
@@ -92,6 +148,7 @@ export default function TeamBuilder({ race, recommendations, onConfirm }) {
           const isSelected = selected.includes(team);
           const isRec = recTeams.has(team);
           const isDisabled = !isSelected && selected.length === 3;
+          const rec = recByTeam[team];
 
           return (
             <button
@@ -123,6 +180,21 @@ export default function TeamBuilder({ race, recommendations, onConfirm }) {
                 </div>
               </div>
 
+              {rec && (
+                <div className="mt-3 pt-2 border-t border-border/60 space-y-1.5">
+                  <div className="flex items-baseline gap-1">
+                    <span className="eyebrow !text-[7px] text-muted-foreground">Predicted</span>
+                    <span className="font-display text-base text-teal tabular">{Math.round(rec.predicted_score ?? rec.predicted_pts ?? 0)}</span>
+                    <span className="eyebrow !text-[7px] text-muted-foreground">pts</span>
+                  </div>
+                  {windHistory[team]?.total > 0 && (
+                    <p className="text-[9px] text-ink/45 leading-snug">
+                      Top 3 in <span className="text-ink/65">{windHistory[team].wins}/{windHistory[team].total}</span> {windHistory[team].category} wind races
+                    </p>
+                  )}
+                </div>
+              )}
+
               {isSelected && (
                 <div className="absolute bottom-0 left-0 right-0 h-px bg-gold" />
               )}
@@ -130,6 +202,17 @@ export default function TeamBuilder({ race, recommendations, onConfirm }) {
           );
         })}
       </div>
+
+      {/* Score error */}
+      {scoreError && (
+        <div className="rounded-sm border border-destructive/30 bg-destructive/5 px-6 py-4 flex items-start gap-3">
+          <span className="text-destructive mt-0.5">⚠</span>
+          <div>
+            <p className="eyebrow !text-[9px] text-destructive">Scoring Error</p>
+            <p className="text-sm text-ink/70 mt-1">{scoreError}</p>
+          </div>
+        </div>
+      )}
 
       {/* CTA */}
       {selected.length === 3 && (

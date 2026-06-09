@@ -1,12 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Nav } from "@/components/site/Nav";
 import { Hero } from "@/components/site/Hero";
+import { GPSTeaser } from "@/components/site/GPSTeaser";
 import { Countdown } from "@/components/site/Countdown";
 import { HowItWorks } from "@/components/site/HowItWorks";
+import { NextRace } from "@/components/site/NextRace";
 import { AIEngine } from "@/components/site/AIEngine";
 import { LiveSim } from "@/components/site/LiveSim";
 import { CTA } from "@/components/site/CTA";
 import { ScrollProgress } from "@/components/site/ScrollProgress";
+import { FloatingDemo } from "@/components/site/FloatingDemo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -24,10 +27,13 @@ function Index() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <ScrollProgress />
+      <FloatingDemo />
       <Nav />
       <Hero />
+      <GPSTeaser />
       <Countdown />
       <HowItWorks />
+      <NextRace />
       <AIEngine />
       <LiveSim />
       <CTA />

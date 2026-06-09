@@ -40,3 +40,7 @@ export const fetchOptimizerPerformance = () =>
 /** GET /api/races/{event}/{raceLabel}/gps — GPS tracks for race replay (Day 4) */
 export const fetchGPS = (event, raceLabel) =>
   fetch(`${API_BASE}/races/${event}/${raceLabel}/gps`).then(handleResponse);
+
+/** GET /api/optimizer/features — Ridge model feature coefficients */
+export const fetchFeatureImportance = () =>
+  fetch(`${API_BASE}/optimizer/features`).then(handleResponse);

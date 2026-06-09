@@ -155,6 +155,47 @@ def recommend_teams(
 
 
 # ---------------------------------------------------------------------------
+# Feature importance (used by /api/optimizer/features endpoint)
+# ---------------------------------------------------------------------------
+
+def get_feature_importance(model_path: Path = MODEL_PATH) -> dict:
+    """
+    Extract Ridge Regression coefficients from the trained pipeline.
+
+    Returns two groups:
+    - team_weights: one-hot team coefficients (model's base-skill estimate per team)
+    - wind_weights: scaled wind feature coefficients (wind speed, sin/cos direction)
+    """
+    pipeline: Pipeline = joblib.load(model_path)
+
+    preprocessor = pipeline.named_steps["preprocessor"]
+    ohe = preprocessor.named_transformers_["team_ohe"]
+    team_names = list(ohe.categories_[0])
+
+    wind_feature_names = ["avg_tws_km_h", "twd_sin", "twd_cos"]
+    wind_labels = ["Wind speed", "Wind dir (sin)", "Wind dir (cos)"]
+
+    coef = pipeline.named_steps["regressor"].coef_
+    n_teams = len(team_names)
+
+    team_weights = sorted(
+        [{"team": name, "coefficient": round(float(coef[i]), 2)} for i, name in enumerate(team_names)],
+        key=lambda x: x["coefficient"],
+        reverse=True,
+    )
+    wind_weights = [
+        {
+            "name": wind_feature_names[j],
+            "label": wind_labels[j],
+            "coefficient": round(float(coef[n_teams + j]), 2),
+        }
+        for j in range(3)
+    ]
+
+    return {"team_weights": team_weights, "wind_weights": wind_weights}
+
+
+# ---------------------------------------------------------------------------
 # Performance evaluation (used by /api/optimizer/performance endpoint)
 # ---------------------------------------------------------------------------
 

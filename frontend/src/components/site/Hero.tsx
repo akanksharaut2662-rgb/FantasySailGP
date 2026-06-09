@@ -71,6 +71,34 @@ export function Hero() {
           <span className="font-display italic text-3xl md:text-5xl text-teal">— fantasy</span>
           <span className="font-mono text-xs text-ink/60">·  build · forecast · follow</span>
         </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 1.6, ease: [0.22, 1, 0.36, 1] }}
+          className="mt-10 flex items-center gap-5"
+        >
+          <a
+            href="/app"
+            className="group inline-flex items-center gap-4 bg-ink text-cream pl-7 pr-2 py-2 rounded-full text-sm"
+          >
+            Build your team
+            <span className="h-11 w-11 rounded-full bg-gold text-ink grid place-items-center group-hover:bg-gold/80 transition-colors">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
+            </span>
+          </a>
+          <a
+            href="/app?demo=1"
+            className="inline-flex items-center gap-2 text-sm text-ink/70 hover:text-ink transition-colors"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5,3 19,12 5,21" />
+            </svg>
+            Watch demo
+          </a>
+        </motion.div>
       </motion.div>
 
       {/* Scroll badge */}

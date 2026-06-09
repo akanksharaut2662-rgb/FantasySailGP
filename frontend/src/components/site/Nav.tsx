@@ -13,13 +13,14 @@ export function Nav() {
         </a>
         <nav className="hidden md:flex items-center gap-10 text-sm">
           {[
-            ["Next Race", "#race"],
+            ["Dataset", "#race"],
             ["Playbook", "#how"],
             ["Picks", "#ai"],
             ["Live", "#live"],
           ].map(([l, h]) => (
             <a key={h} href={h} className="text-ink/70 hover:text-ink transition-colors">{l}</a>
           ))}
+          <Link to="/model" className="text-ink/70 hover:text-teal transition-colors">Model Intel</Link>
         </nav>
         <Link to="/app" className="group inline-flex items-center gap-3 text-sm">
           <span className="hidden sm:inline text-ink">Build team</span>

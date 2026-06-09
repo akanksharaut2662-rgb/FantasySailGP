@@ -88,6 +88,8 @@
 @layer base {
   * { border-color: var(--color-border); }
   html { scroll-behavior: smooth; }
+  /* Disable smooth scroll inside the app (prevents drift after step changes) */
+  html:has(main[data-app]) { scroll-behavior: auto; }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);

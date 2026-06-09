@@ -1,45 +1,89 @@
 "use client";
 import { motion, useScroll, useTransform } from "motion/react";
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import scene from "@/assets/scene-boat.jpg";
 import { Reveal, Stagger, StaggerItem } from "./motion-primitives";
 
-const events = [
-  { t: "+00:42", label: "Start", detail: "Clean line, AUS port end advantage", delta: "+12" },
-  { t: "+02:18", label: "Mark 1", detail: "NZ rounds inside, gains 2 boats", delta: "+18" },
-  { t: "+04:05", label: "Foiling gybe", detail: "FRA holds foils, top speed 49.1 kts", delta: "+9" },
-  { t: "+06:30", label: "Penalty", detail: "GBR called for windward infringement", delta: "−14" },
-  { t: "+09:12", label: "Podium", detail: "AUS · NZL · FRA across the line", delta: "+24" },
-];
+const FLAG: Record<string, string> = {
+  AUS: "🇦🇺", BRA: "🇧🇷", CAN: "🇨🇦", DEN: "🇩🇰", ESP: "🇪🇸",
+  FRA: "🇫🇷", GBR: "🇬🇧", GER: "🇩🇪", ITA: "🇮🇹", NZL: "🇳🇿",
+  SUI: "🇨🇭", SWE: "🇸🇪", USA: "🇺🇸",
+};
 
-const board = [
-  { rank: 1, name: "You", pts: 1284, move: "▲ 3" },
-  { rank: 2, name: "M. Hayes", pts: 1271, move: "▼ 1" },
-  { rank: 3, name: "Reef Riders", pts: 1255, move: "—" },
-  { rank: 4, name: "Foil Co.", pts: 1240, move: "▲ 2" },
-];
+const API_BASE = (import.meta as any).env?.VITE_API_BASE ?? "http://localhost:8000/api";
+
+interface TeamScore {
+  team: string;
+  final_rank: number;
+  total_pts: number;
+  position_pts: number;
+  speed_pts: number;
+  overtake_pts: number;
+  clean_sailing_pts: number;
+  vmg_pts: number;
+}
+
+function buildEvents(lb: TeamScore[]) {
+  const sorted = [...lb].sort((a, b) => a.final_rank - b.final_rank);
+  const topSpeed = [...lb].sort((a, b) => b.speed_pts - a.speed_pts)[0];
+  const topOvertake = [...lb].sort((a, b) => b.overtake_pts - a.overtake_pts)[0];
+  const worstClean = [...lb].sort((a, b) => a.clean_sailing_pts - b.clean_sailing_pts)[0];
+  const podium = sorted.slice(0, 3).map(t => `${FLAG[t.team] ?? ""} ${t.team}`).join(" · ");
+
+  return [
+    { t: "+00:00", label: "Start", detail: `${sorted.length} boats on the line. ${sorted[0]?.team ?? "—"} takes early advantage.`, delta: `+${sorted[0]?.position_pts ?? 0}` },
+    { t: "+02:30", label: "Speed Highlight", detail: `${topSpeed?.team ?? "—"} reaches top recorded speed — best wind-normalised pace in the fleet.`, delta: `+${topSpeed?.speed_pts ?? 0}` },
+    { t: "+04:45", label: "Overtake", detail: `${topOvertake?.team ?? "—"} logs the most rank improvements — ${topOvertake?.overtake_pts ?? 0} overtake points.`, delta: `+${topOvertake?.overtake_pts ?? 0}` },
+    { t: "+07:10", label: "Penalty", detail: `${worstClean?.team ?? "—"} receives a sailing infringement — lowest clean-sailing score.`, delta: `-${Math.max(0, 15 - (worstClean?.clean_sailing_pts ?? 0))}` },
+    { t: "+11:30", label: "Podium", detail: `Final order: ${podium}`, delta: `+${sorted[0]?.total_pts ?? 0}` },
+  ];
+}
 
 export function LiveSim() {
   const sceneRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: sceneRef, offset: ["start end", "end start"] });
   const sceneY = useTransform(scrollYProgress, [0, 1], ["-6%", "6%"]);
 
+  const [leaderboard, setLeaderboard] = useState<TeamScore[]>([]);
+  const [events, setEvents] = useState(() => buildEvents([]));
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/races/Halifax/Race_1/leaderboard`)
+      .then(r => (r.ok ? r.json() : null))
+      .then((data: TeamScore[] | null) => {
+        if (data?.length) {
+          setLeaderboard(data);
+          setEvents(buildEvents(data));
+          setLoaded(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const topBoard = leaderboard.length
+    ? [...leaderboard].sort((a, b) => a.final_rank - b.final_rank).slice(0, 4)
+    : [];
+
   return (
     <section id="live" className="relative py-28 md:py-40 px-6 md:px-10 bg-secondary/40 overflow-hidden">
       <div className="mx-auto max-w-7xl">
         <div className="grid md:grid-cols-[1fr_auto] gap-10 items-end mb-20">
           <Reveal as="h2" className="font-display text-5xl md:text-7xl leading-[0.95] max-w-3xl">
-            Every maneuver,<br/><span className="italic text-teal">scored in real time</span>.
+            Every maneuver,<br /><span className="italic text-teal">scored from telemetry</span>.
           </Reveal>
-          <Reveal as="p" delay={0.2} className="eyebrow">Live Feed</Reveal>
+          <Reveal as="p" delay={0.2} className="eyebrow">
+            {loaded ? "Halifax · Race 1 · Replay" : "Race Replay"}
+          </Reveal>
         </div>
 
         <div className="grid lg:grid-cols-[1.4fr_1fr] gap-px bg-border/60">
           <Reveal className="bg-background p-8 md:p-12">
             <div className="flex items-center justify-between mb-8">
-              <p className="eyebrow">Race · 2 of 3 · Leg 4</p>
+              <p className="eyebrow">Halifax 2024 · Race 1 · Highlights</p>
               <span className="font-mono text-[10px] tabular text-ink/50 flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />09:42
+                <span className={`h-1.5 w-1.5 rounded-full ${loaded ? "bg-teal" : "bg-border"} animate-pulse`} />
+                {loaded ? "real data" : "loading…"}
               </span>
             </div>
             <Stagger as="ol" className="relative">
@@ -68,7 +112,7 @@ export function LiveSim() {
                     <div className="font-display text-2xl text-ink">{e.label}</div>
                     <div className="text-sm text-ink/60 mt-0.5">{e.detail}</div>
                   </div>
-                  <span className={`font-display text-xl tabular pt-1 ${e.delta.startsWith("−") ? "text-destructive" : "text-teal"}`}>
+                  <span className={`font-display text-xl tabular pt-1 ${e.delta.startsWith("-") ? "text-destructive" : "text-teal"}`}>
                     {e.delta}
                   </span>
                 </StaggerItem>
@@ -78,52 +122,49 @@ export function LiveSim() {
 
           <Reveal delay={0.1} className="bg-background p-8 md:p-12">
             <div className="flex items-center justify-between mb-8">
-              <p className="eyebrow">Leaderboard</p>
+              <p className="eyebrow">Race Leaderboard</p>
               <span className="font-mono text-[10px] text-gold flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />live
+                <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
+                {loaded ? "Halifax Race 1" : "live"}
               </span>
             </div>
-            <Stagger as="ol" className="divide-y divide-border">
-              {board.map((r) => (
-                <StaggerItem key={r.rank} as="li" className="py-5 grid grid-cols-[auto_1fr_auto_auto] gap-4 items-baseline">
-                  <span className="font-mono text-xs text-ink/50 tabular">{String(r.rank).padStart(2, "0")}</span>
-                  <span className="font-display text-2xl text-ink flex items-center gap-3">
-                    {r.name}
-                    {r.name === "You" && (
-                      <motion.span
-                        initial={{ opacity: 0, scale: 0.6 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.6, delay: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
-                        className="text-[9px] uppercase tracking-[0.2em] text-gold border border-gold/50 rounded-sm px-1.5 py-0.5"
-                      >
-                        You
-                      </motion.span>
-                    )}
-                  </span>
-                  <span className="font-display text-lg tabular text-ink">{r.pts.toLocaleString()}</span>
-                  <span className={`font-mono text-xs tabular ${r.move.startsWith("▲") ? "text-teal" : r.move.startsWith("▼") ? "text-destructive" : "text-ink/40"}`}>
-                    {r.move}
-                  </span>
-                </StaggerItem>
-              ))}
-            </Stagger>
-            <div className="mt-10">
-              <div className="flex items-baseline justify-between text-xs text-ink/60">
-                <span className="eyebrow !text-[9px]">Your momentum</span>
-                <span className="font-display text-teal tabular text-lg">+87</span>
+            {topBoard.length > 0 ? (
+              <Stagger as="ol" className="divide-y divide-border">
+                {topBoard.map((r) => (
+                  <StaggerItem key={r.team} as="li" className="py-5 grid grid-cols-[auto_1fr_auto] gap-4 items-baseline">
+                    <span className="font-mono text-xs text-ink/50 tabular">{String(r.final_rank).padStart(2, "0")}</span>
+                    <span className="font-display text-2xl text-ink flex items-center gap-2">
+                      {FLAG[r.team] ?? "🏴"} {r.team}
+                    </span>
+                    <span className="font-display text-lg tabular text-ink">{r.total_pts} pts</span>
+                  </StaggerItem>
+                ))}
+              </Stagger>
+            ) : (
+              <div className="py-8 text-center">
+                <p className="eyebrow animate-pulse">Loading race data…</p>
               </div>
-              <div className="mt-3 h-px bg-border relative overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  whileInView={{ width: "72%" }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 1.4, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                  className="absolute left-0 bg-gold"
-                  style={{ height: 3, top: -1 }}
-                />
+            )}
+            {loaded && leaderboard.length > 0 && (
+              <div className="mt-10">
+                <div className="flex items-baseline justify-between text-xs text-ink/60">
+                  <span className="eyebrow !text-[9px]">Race winner points</span>
+                  <span className="font-display text-teal tabular text-lg">
+                    {Math.max(...leaderboard.map(r => r.total_pts))}
+                  </span>
+                </div>
+                <div className="mt-3 h-px bg-border relative overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    whileInView={{ width: "100%" }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 1.4, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                    className="absolute left-0 bg-gold"
+                    style={{ height: 3, top: -1 }}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </Reveal>
         </div>
 

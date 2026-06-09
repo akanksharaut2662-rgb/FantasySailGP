@@ -40,9 +40,17 @@ export function CTA() {
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
               </motion.span>
             </motion.a>
-            <a href="#race" className="text-sm text-ink underline underline-offset-4 decoration-ink/30 hover:decoration-ink transition">
-              View next race
-            </a>
+            <motion.a
+              href="/app?demo=1"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="inline-flex items-center gap-2 text-sm text-ink border border-ink/25 rounded-full px-6 py-3 hover:border-ink transition-colors"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <polygon points="5,3 19,12 5,21" fill="currentColor" stroke="none" />
+              </svg>
+              Watch demo
+            </motion.a>
           </div>
         </Reveal>
       </div>
