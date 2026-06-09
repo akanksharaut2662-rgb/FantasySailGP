@@ -38,6 +38,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
         "http://localhost:8080",
     ],
     allow_methods=["*"],
@@ -222,6 +224,71 @@ def optimizer_features():
             status_code=503,
             detail="Model not trained yet. Run: cd backend && python train_model.py",
         )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/team-values
+# ---------------------------------------------------------------------------
+
+@app.get("/api/team-values")
+def get_team_values():
+    """Return market values for all teams based on historical performance."""
+    team_stats: dict[str, dict] = {}
+
+    for event in EVENTS:
+        try:
+            meta = load_metadata(event)
+        except FileNotFoundError:
+            continue
+        for _, row in meta.iterrows():
+            race_label = row["race_label"]
+            teams_raw = row.get("teams", "")
+            teams = [t.strip() for t in str(teams_raw).split(",") if t.strip()]
+            for team in teams:
+                if team not in team_stats:
+                    team_stats[team] = {"wins": 0, "podiums": 0, "races": 0, "losses": 0}
+                team_stats[team]["races"] += 1
+
+            try:
+                scores = get_or_compute_scores(event, race_label)
+                sorted_scores = sorted(scores, key=lambda x: x.get("total_pts") or 0, reverse=True)
+                for rank, score_row in enumerate(sorted_scores, 1):
+                    team = score_row.get("team", "")
+                    if not team:
+                        continue
+                    if team not in team_stats:
+                        team_stats[team] = {"wins": 0, "podiums": 0, "races": 0, "losses": 0}
+                    if rank == 1:
+                        team_stats[team]["wins"] += 1
+                        team_stats[team]["podiums"] += 1
+                    elif rank <= 3:
+                        team_stats[team]["podiums"] += 1
+                    else:
+                        team_stats[team]["losses"] += 1
+            except Exception:
+                pass
+
+    BASE_COST = 1_000_000
+    WIN_MULT = 600_000
+    PODIUM_MULT = 100_000
+
+    result = []
+    for team, stats in sorted(team_stats.items()):
+        total_races = stats["wins"] + stats["losses"]
+        win_pct = stats["wins"] / max(total_races, 1) if total_races > 0 else 0.0
+        cost = int(BASE_COST + (win_pct * WIN_MULT * 8) + (stats["podiums"] * PODIUM_MULT))
+        cost = max(500_000, round(cost / 50_000) * 50_000)
+        result.append({
+            "team": team,
+            "cost": cost,
+            "wins": stats["wins"],
+            "losses": stats["losses"],
+            "podiums": stats["podiums"],
+            "win_rate": round(win_pct * 100, 1),
+        })
+
+    result.sort(key=lambda x: x["cost"], reverse=True)
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -38,81 +38,108 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
+/* ── SailGP Golden Hour Theme ──────────────────────────────────────────────── */
 :root {
   --radius: 0.375rem;
 
-  /* BelArosa-inspired hospitality palette */
-  --cream: oklch(0.965 0.018 90);            /* warm off-white */
-  --sky: oklch(0.88 0.04 215);                /* pastel sky blue */
-  --teal: oklch(0.55 0.06 200);               /* dusty teal accent */
-  --gold: oklch(0.72 0.12 75);                /* warm gold */
-  --ink: oklch(0.28 0.04 220);                /* deep teal-ink */
+  /* Core palette — warm sunset */
+  --navy-deep:   oklch(0.07 0.03 265);      /* deep warm navy */
+  --navy-card:   oklch(0.12 0.04 55);       /* warm amber-tinted card */
+  --navy-raised: oklch(0.17 0.05 58);       /* elevated warm surface */
+  --amber:       oklch(0.78 0.16 75);       /* primary accent — golden amber */
+  --amber-glow:  oklch(0.85 0.14 78);       /* highlight amber */
+  --sunset:      oklch(0.62 0.17 45);       /* sunset orange */
+  --gold:        oklch(0.74 0.14 75);       /* warm gold */
+  --silver:      oklch(0.65 0.02 70);       /* warm silver */
+  --white:       oklch(0.97 0.01 75);       /* warm near-white */
+  --danger:      oklch(0.55 0.18 28);
 
-  --background: var(--cream);
-  --foreground: var(--ink);
+  /* Semantic aliases */
+  --ink:         oklch(0.94 0.02 70);       /* primary text — warm white */
+  --cream:       oklch(0.09 0.04 60);       /* dark warm surface */
+  --teal:        oklch(0.78 0.16 75);       /* repurposed → amber (all text-teal = amber) */
+  --sky:         oklch(0.20 0.04 265);
 
-  --card: oklch(1 0 0);
-  --card-foreground: var(--ink);
+  /* shadcn-style tokens */
+  --background: var(--navy-deep);
+  --foreground: oklch(0.93 0.02 70);
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: var(--ink);
+  --card: oklch(0.12 0.04 58 / 0.82);
+  --card-foreground: oklch(0.93 0.02 70);
 
-  --primary: var(--ink);
-  --primary-foreground: var(--cream);
+  --popover: oklch(0.13 0.04 58);
+  --popover-foreground: oklch(0.93 0.02 70);
 
-  --secondary: oklch(0.93 0.02 215);
-  --secondary-foreground: var(--ink);
+  --primary: oklch(0.93 0.02 70);
+  --primary-foreground: oklch(0.08 0.03 60);
 
-  --muted: oklch(0.94 0.012 90);
-  --muted-foreground: oklch(0.48 0.03 220);
+  --secondary: oklch(0.17 0.05 58);
+  --secondary-foreground: oklch(0.75 0.04 70);
+
+  --muted: oklch(0.16 0.04 58);
+  --muted-foreground: oklch(0.54 0.05 68);
 
   --accent: var(--gold);
-  --accent-foreground: var(--ink);
+  --accent-foreground: oklch(0.08 0.03 60);
 
-  --destructive: oklch(0.55 0.18 28);
-  --destructive-foreground: var(--cream);
+  --destructive: var(--danger);
+  --destructive-foreground: oklch(0.97 0.01 75);
 
-  --border: oklch(0.86 0.02 200 / 70%);
-  --input: oklch(0.88 0.02 200);
-  --ring: var(--gold);
+  --border: oklch(0.32 0.08 65 / 48%);
+  --input:  oklch(0.19 0.05 60);
+  --ring:   var(--gold);
 
-  --shadow-soft: 0 30px 60px -30px oklch(0.30 0.05 220 / 0.25);
-  --gradient-sky: linear-gradient(180deg, oklch(0.92 0.035 215), oklch(0.965 0.018 90));
+  --shadow-soft:    0 4px 24px -4px oklch(0.03 0.04 60 / 0.75), 0 1px 3px oklch(0.03 0.03 60 / 0.5);
+  --shadow-card:    0 8px 32px -8px oklch(0.03 0.04 60 / 0.65);
+  --shadow-glow-cyan: 0 0 24px oklch(0.78 0.16 75 / 0.40);
+  --shadow-glow-gold: 0 0 24px oklch(0.74 0.14 75 / 0.35);
 }
 
-.dark { /* not used; kept for shadcn parity */
-  --background: var(--cream);
-  --foreground: var(--ink);
-}
-
+/* ── Base layer ─────────────────────────────────────────────────────────────── */
 @layer base {
   * { border-color: var(--color-border); }
+
   html { scroll-behavior: smooth; }
-  /* Disable smooth scroll inside the app (prevents drift after step changes) */
   html:has(main[data-app]) { scroll-behavior: auto; }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    /* Golden Hour sunset — warm amber from below, cooler navy above */
+    background-image:
+      radial-gradient(ellipse 140% 75% at 50% 130%, oklch(0.52 0.18 50 / 0.32) 0%, transparent 52%),
+      radial-gradient(ellipse 80% 50% at 85% 100%, oklch(0.45 0.16 40 / 0.22) 0%, transparent 48%),
+      radial-gradient(ellipse 65% 40% at 15% 90%, oklch(0.40 0.13 55 / 0.16) 0%, transparent 45%),
+      radial-gradient(ellipse 90% 35% at 50% 0%, oklch(0.10 0.04 265 / 0.55) 0%, transparent 60%);
+    background-attachment: fixed;
   }
+
   h1, h2, h3, h4 {
     font-family: var(--font-serif);
     font-weight: 300;
     letter-spacing: -0.01em;
     color: var(--color-ink);
   }
-  ::selection { background: var(--color-gold); color: var(--color-ink); }
+
+  ::selection {
+    background: oklch(0.70 0.14 200 / 0.35);
+    color: var(--color-ink);
+  }
 }
 
+/* ── Typography utilities ───────────────────────────────────────────────────── */
 @utility font-display {
   font-family: var(--font-serif);
   font-weight: 300;
   letter-spacing: -0.02em;
 }
+
 @utility font-mono {
   font-family: var(--font-mono);
 }
+
 @utility eyebrow {
   font-family: var(--font-sans);
   font-size: 11px;
@@ -121,26 +148,81 @@
   color: var(--color-teal);
   font-weight: 500;
 }
+
 @utility tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
+
 @utility hairline {
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--color-teal), transparent);
-  opacity: 0.4;
+  background: linear-gradient(90deg, transparent, oklch(0.78 0.16 75 / 0.35), transparent);
 }
 
-@keyframes spin-slow { from { transform: rotate(0); } to { transform: rotate(360deg); } }
-@keyframes float-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes drift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-@keyframes tick { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+/* ── Glass card utility ─────────────────────────────────────────────────────── */
+@utility glass {
+  background: oklch(0.12 0.04 58 / 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid oklch(0.34 0.08 65 / 0.42);
+}
 
-@utility animate-spin-slow { animation: spin-slow 20s linear infinite; }
-@utility animate-float-in { animation: float-in 0.9s ease-out both; }
-@utility animate-drift { animation: drift 5s ease-in-out infinite; }
-@utility animate-tick { animation: tick 0.5s ease-out both; }
+@utility glass-raised {
+  background: oklch(0.17 0.05 58 / 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid oklch(0.40 0.10 65 / 0.48);
+}
 
+/* ── Glow utilities ─────────────────────────────────────────────────────────── */
+@utility glow-cyan {
+  box-shadow: 0 0 22px oklch(0.78 0.16 75 / 0.35), 0 4px 16px oklch(0.03 0.04 60 / 0.6);
+}
+
+@utility glow-gold {
+  box-shadow: 0 0 22px oklch(0.74 0.14 75 / 0.30), 0 4px 16px oklch(0.03 0.04 60 / 0.6);
+}
+
+/* ── Scan-line overlay (decorative telemetry effect) ───────────────────────── */
+@utility scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    oklch(0.04 0.02 240 / 0.08) 2px,
+    oklch(0.04 0.02 240 / 0.08) 4px
+  );
+  pointer-events: none;
+}
+
+/* ── Animations ─────────────────────────────────────────────────────────────── */
+@keyframes spin-slow   { from { transform: rotate(0); }    to { transform: rotate(360deg); } }
+@keyframes float-in    { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes drift       { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes tick        { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse-cyan  { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+@keyframes scan        { from { transform: translateY(-100%); } to { transform: translateY(100vh); } }
+
+@utility animate-spin-slow  { animation: spin-slow 20s linear infinite; }
+@utility animate-float-in   { animation: float-in 0.9s ease-out both; }
+@utility animate-drift      { animation: drift 5s ease-in-out infinite; }
+@utility animate-tick       { animation: tick 0.5s ease-out both; }
+@utility animate-pulse-cyan { animation: pulse-cyan 2s ease-in-out infinite; }
+
+/* Ocean wave animation */
+@keyframes waveMove {
+  0%   { transform: translateX(0); }
+  50%  { transform: translateX(-25%); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes waveMoveR {
+  0%   { transform: translateX(0); }
+  50%  { transform: translateX(25%); }
+  100% { transform: translateX(0); }
+}
+
+/* Boat sail animations */
 @keyframes sail-right {
   0%   { transform: translateX(-160px); }
   100% { transform: translateX(calc(100vw + 160px)); }
@@ -162,7 +244,6 @@
   animation: sail-right linear infinite;
   animation-fill-mode: both;
 }
-
 .sail-left {
   animation: sail-right linear infinite;
   animation-fill-mode: both;

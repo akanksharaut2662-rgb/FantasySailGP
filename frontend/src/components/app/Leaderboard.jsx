@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { fetchOptimizerPerformance } from "../../lib/api";
 import { Link } from "@tanstack/react-router";
 
@@ -16,6 +16,14 @@ const FULL_NAME = {
 
 const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X"];
 
+const CREDIT_REWARDS = [2_000_000, 1_000_000, 500_000];
+
+function rankReward(rank) {
+  return CREDIT_REWARDS[rank - 1] ?? 0;
+}
+
+function formatCredits(n) { return n.toLocaleString(); }
+
 function RankCell({ rank }) {
   if (!rank) return <span className="eyebrow text-muted-foreground">DNF</span>;
   if (rank <= 3) {
@@ -25,11 +33,10 @@ function RankCell({ rank }) {
   return <span className="font-display text-lg text-muted-foreground">{rank}</span>;
 }
 
-// Count-up hook
-function useCountUp(target, duration = 1400) {
+function useCountUp(target, duration = 1400, enabled = true) {
   const [value, setValue] = useState(0);
   useEffect(() => {
-    if (!target) return;
+    if (!target || !enabled) return;
     let current = 0;
     const step = 30;
     const increment = target / (duration / step);
@@ -39,13 +46,17 @@ function useCountUp(target, duration = 1400) {
       if (current >= target) clearInterval(timer);
     }, step);
     return () => clearInterval(timer);
-  }, [target, duration]);
+  }, [target, duration, enabled]);
   return value;
 }
 
-export default function Leaderboard({ result, recommendations = [], onReset }) {
+export default function Leaderboard({ result, recommendations = [], credits, onCreditsEarned, onReset }) {
   const [modelPerf, setModelPerf] = useState(null);
-  const displayScore = useCountUp(result?.user_total_score);
+  const [rewardAwarded, setRewardAwarded] = useState(false);
+  const [displayedReward, setDisplayedReward] = useState(0);
+  const awardedRef = useRef(false);
+
+  const displayScore = useCountUp(result?.user_total_score, 1400);
 
   useEffect(() => {
     fetchOptimizerPerformance().then(setModelPerf).catch(() => setModelPerf(null));
@@ -56,14 +67,27 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
   const recTeams = new Set(recommendations.map(r => r.team));
   const sorted = [...result.leaderboard].sort((a, b) => b.total_pts - a.total_pts);
 
-  // Score context
   const allScores = result.leaderboard.map(r => r.total_pts);
   const scoreAvg = Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length);
   const scoreBest = Math.max(...allScores);
   const userRank = allScores.filter(s => s > result.user_total_score).length + 1;
   const totalTeams = allScores.length;
 
-  // ── AI vs You computation ──
+  const reward = rankReward(userRank);
+
+  // Award credits once on mount
+  useEffect(() => {
+    if (awardedRef.current || reward === 0) return;
+    awardedRef.current = true;
+    const t = setTimeout(() => {
+      setRewardAwarded(true);
+      setDisplayedReward(reward);
+      if (onCreditsEarned) onCreditsEarned(reward);
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [reward]);
+
+  // AI vs You
   const leaderboardByTeam = Object.fromEntries(result.leaderboard.map(r => [r.team, r]));
   const aiRecs = recommendations.slice(0, 3);
   const aiActualScore = aiRecs.reduce((s, rec) => s + (leaderboardByTeam[rec.team]?.total_pts ?? 0), 0);
@@ -71,14 +95,16 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
   const userScore = result.user_total_score;
   const optimal = [...result.leaderboard].sort((a, b) => b.total_pts - a.total_pts).slice(0, 3);
   const optimalScore = optimal.reduce((s, t) => s + t.total_pts, 0);
-  const diff = Math.abs(aiActualScore - userScore);
   const aiWins = aiActualScore > userScore;
   const tie = aiActualScore === userScore;
+  const diff = Math.abs(aiActualScore - userScore);
+
+  const animatedReward = useCountUp(displayedReward, 1200, rewardAwarded);
 
   return (
     <div className="max-w-4xl mx-auto px-6 md:px-10 py-16 space-y-12">
 
-      {/* Score hero — count-up animation */}
+      {/* Score hero */}
       <div>
         <p className="eyebrow">Your team scored</p>
         <div className="font-display text-[22vw] md:text-[14rem] text-ink tabular leading-none mt-2">
@@ -86,8 +112,7 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
         </div>
         <p className="font-display text-2xl text-muted-foreground italic">points</p>
 
-        {/* Contextual stats row */}
-        <div className="flex items-center gap-8 mt-6">
+        <div className="flex items-center gap-8 mt-6 flex-wrap">
           <div>
             <div className="font-display text-2xl text-ink tabular">{scoreAvg}</div>
             <div className="eyebrow !text-[8px] text-muted-foreground mt-0.5">Race avg</div>
@@ -109,10 +134,65 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
 
       <div className="hairline" />
 
+      {/* ── Credit Reward Banner ── */}
+      <div className={`rounded-sm border overflow-hidden transition-all duration-700 ${
+        userRank === 1
+          ? "border-gold/60 bg-gold/5"
+          : userRank <= 3
+          ? "border-teal/40 bg-teal/5"
+          : "border-border bg-card"
+      }`}>
+        <div className="px-6 py-5">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <p className="eyebrow">
+                {userRank === 1 ? "🥇 1st Place" : userRank === 2 ? "🥈 2nd Place" : userRank === 3 ? "🥉 3rd Place" : `#${userRank} Place`}
+              </p>
+              <h3 className="mt-2 font-display text-3xl text-ink">
+                {reward > 0 ? "Credits Earned" : "Race Complete"}
+              </h3>
+            </div>
+            {reward > 0 && (
+              <div className="text-right">
+                <div className={`font-display text-4xl tabular ${userRank === 1 ? "text-gold" : "text-teal"}`}>
+                  +{rewardAwarded ? formatCredits(animatedReward) : "—"}
+                </div>
+                <div className="eyebrow !text-[8px] text-muted-foreground mt-0.5">credits won</div>
+              </div>
+            )}
+          </div>
+
+          {reward > 0 && (
+            <div className="mt-4 pt-4 border-t border-border/50">
+              <div className="flex items-center gap-6 flex-wrap text-sm">
+                <div>
+                  <span className="text-muted-foreground">Credits before: </span>
+                  <span className="font-display text-base text-ink tabular">
+                    {formatCredits(credits - (rewardAwarded ? reward : 0))}
+                  </span>
+                </div>
+                <div className="text-teal">+{formatCredits(reward)}</div>
+                <div>
+                  <span className="text-muted-foreground">New balance: </span>
+                  <span className={`font-display text-base tabular ${userRank <= 3 ? "text-gold" : "text-ink"}`}>
+                    {rewardAwarded ? formatCredits(credits) : "…"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {reward === 0 && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Top 3 finishes earn credits: 1st +2M · 2nd +1M · 3rd +500K
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* ── AI vs You showdown ── */}
       {aiRecs.length >= 3 && (
         <div className="rounded-sm border border-border bg-card shadow-[var(--shadow-soft)] overflow-hidden">
-          {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
             <div>
               <p className="eyebrow">Model vs Your Picks</p>
@@ -127,7 +207,6 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
             </span>
           </div>
 
-          {/* Two-column comparison */}
           <div className="grid grid-cols-2 divide-x divide-border">
             {/* AI column */}
             <div className="p-6 space-y-4">
@@ -141,9 +220,7 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
                         <span className="text-base">{FLAG[rec.team] ?? "🏴"}</span>
                         <span className="font-display text-sm text-ink">{rec.team}</span>
                       </span>
-                      <span className="font-display text-lg text-ink tabular">
-                        {actual?.total_pts ?? "—"}
-                      </span>
+                      <span className="font-display text-lg text-ink tabular">{actual?.total_pts ?? "—"}</span>
                     </div>
                   );
                 })}
@@ -151,9 +228,7 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
               <div className="hairline" />
               <div className="flex items-baseline justify-between">
                 <span className="eyebrow !text-[8px] text-muted-foreground">Total</span>
-                <span className={`font-display text-4xl tabular ${aiWins ? "text-teal" : "text-ink/60"}`}>
-                  {aiActualScore}
-                </span>
+                <span className={`font-display text-4xl tabular ${aiWins ? "text-teal" : "text-ink/60"}`}>{aiActualScore}</span>
               </div>
             </div>
 
@@ -174,42 +249,34 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
               <div className="hairline" />
               <div className="flex items-baseline justify-between">
                 <span className="eyebrow !text-[8px] text-muted-foreground">Total</span>
-                <span className={`font-display text-4xl tabular ${!aiWins && !tie ? "text-gold" : "text-ink/60"}`}>
-                  {userScore}
-                </span>
+                <span className={`font-display text-4xl tabular ${!aiWins && !tie ? "text-gold" : "text-ink/60"}`}>{userScore}</span>
               </div>
             </div>
           </div>
 
-          {/* Verdict bar */}
           <div className="px-6 py-5 border-t border-border bg-secondary/20 space-y-1.5">
             {tie ? (
               <p className="text-sm text-ink/80">Dead heat — you matched the AI exactly.</p>
             ) : aiWins ? (
               <p className="text-sm text-ink/80">
-                The AI outscored your lineup by{" "}
-                <span className="font-display text-gold text-base">{diff} pts</span>.
-                {" "}Ridge Regression called it.
+                The AI outscored your lineup by <span className="font-display text-gold text-base">{diff} pts</span>. Ridge Regression called it.
               </p>
             ) : (
               <p className="text-sm text-ink/80">
-                You outscored the AI by{" "}
-                <span className="font-display text-gold text-base">{diff} pts</span>.
-                {" "}Nice picks.
+                You outscored the AI by <span className="font-display text-gold text-base">{diff} pts</span>. Nice picks.
               </p>
             )}
             {optimalScore > Math.max(aiActualScore, userScore) && (
               <p className="text-xs text-ink/45 font-mono">
-                Best possible: {optimal.map(t => FLAG[t.team] ?? "").join("")}{" "}
-                {optimalScore} pts
+                Best possible: {optimal.map(t => FLAG[t.team] ?? "").join("")} {optimalScore} pts
               </p>
             )}
           </div>
         </div>
       )}
 
-      {/* Legend */}
-      <div className="flex gap-8 text-sm">
+      {/* ── Legend ── */}
+      <div className="flex gap-8 text-sm flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-3 h-px bg-gold" />
           <span className="eyebrow !text-[9px] text-muted-foreground">Your pick</span>
@@ -220,7 +287,7 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
         </div>
       </div>
 
-      {/* ── Desktop table (sm+) ── */}
+      {/* ── Desktop leaderboard table ── */}
       <div className="hidden sm:block rounded-sm border border-border bg-card shadow-[var(--shadow-soft)] overflow-hidden">
         <div className="grid grid-cols-[48px_1fr_40px_40px_40px_52px_40px_60px] px-6 py-4 border-b border-border">
           {["Rank","Team","Pos","Spd","OT","Clean","VMG","Total"].map(h => (
@@ -259,7 +326,7 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
         ))}
       </div>
 
-      {/* ── Mobile list (< sm) ── */}
+      {/* ── Mobile leaderboard ── */}
       <div className="sm:hidden rounded-sm border border-border bg-card shadow-[var(--shadow-soft)] overflow-hidden divide-y divide-border/50">
         {sorted.map((row, i) => (
           <div
@@ -267,9 +334,7 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
             className={`flex items-center gap-4 px-5 py-4 ${row.is_user_pick ? "bg-gold/[0.04]" : ""}`}
           >
             {row.is_user_pick && <div className="w-0.5 h-8 bg-gold rounded-full shrink-0" />}
-            <div className="w-8 shrink-0">
-              <RankCell rank={i + 1} />
-            </div>
+            <div className="w-8 shrink-0"><RankCell rank={i + 1} /></div>
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <span className="text-lg shrink-0">{FLAG[row.team] ?? "🏴"}</span>
               <div className="min-w-0">
@@ -289,7 +354,7 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
         ))}
       </div>
 
-      {/* Model performance */}
+      {/* ── Model performance ── */}
       {modelPerf && (
         <div className="rounded-sm border border-border bg-card shadow-[var(--shadow-soft)] p-6 md:p-8 space-y-6">
           <div className="flex items-start justify-between flex-wrap gap-4">
@@ -307,21 +372,15 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
               Full explainer →
             </Link>
           </div>
-
           <div className="hairline" />
-
           <div className="flex items-baseline gap-3">
             <span className="eyebrow !text-[9px] text-muted-foreground">Bermuda RMSE</span>
             <span className="font-display text-3xl text-ink tabular">{modelPerf.bermuda_rmse.toFixed(1)}</span>
             <span className="text-sm text-muted-foreground">pts avg error</span>
           </div>
-
           <div className="space-y-0 divide-y divide-border/50">
             {modelPerf.races.map(r => (
-              <div
-                key={`${r.event}-${r.race_label}`}
-                className="flex items-center gap-4 py-3 text-xs"
-              >
+              <div key={`${r.event}-${r.race_label}`} className="flex items-center gap-4 py-3 text-xs">
                 <span className="text-muted-foreground w-28 shrink-0 eyebrow !text-[8px]">
                   {r.event} {r.race_label.replace("_", " ")}
                 </span>
@@ -339,7 +398,7 @@ export default function Leaderboard({ result, recommendations = [], onReset }) {
         </div>
       )}
 
-      {/* CTA */}
+      {/* ── CTA ── */}
       <div className="flex justify-center pt-4">
         <button
           onClick={onReset}

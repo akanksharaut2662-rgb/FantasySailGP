@@ -44,3 +44,7 @@ export const fetchGPS = (event, raceLabel) =>
 /** GET /api/optimizer/features — Ridge model feature coefficients */
 export const fetchFeatureImportance = () =>
   fetch(`${API_BASE}/optimizer/features`).then(handleResponse);
+
+/** GET /api/team-values — Market value + historical stats for all teams */
+export const fetchTeamValues = () =>
+  fetch(`${API_BASE}/team-values`).then(handleResponse);
