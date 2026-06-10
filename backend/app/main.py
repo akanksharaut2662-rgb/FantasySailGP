@@ -7,8 +7,12 @@ Docs:      http://localhost:8000/docs
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from .data_loader import load_all_boats, load_metadata
 from .database import get_or_compute_scores, init_db
@@ -298,3 +302,107 @@ def get_team_values():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Auth — users.json (no database, file-based)
+# ---------------------------------------------------------------------------
+
+USERS_FILE = Path(__file__).parent.parent / "users.json"
+
+
+def _read_users() -> list[dict]:
+    if not USERS_FILE.exists():
+        return []
+    try:
+        return json.loads(USERS_FILE.read_text())
+    except Exception:
+        return []
+
+
+def _write_users(users: list[dict]) -> None:
+    USERS_FILE.write_text(json.dumps(users, indent=2))
+
+
+class SignupRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class CreditsUpdateRequest(BaseModel):
+    email: str
+    credits: int
+    score: int | None = None
+    teams: list[str] | None = None
+
+
+@app.post("/api/auth/signup")
+def auth_signup(req: SignupRequest):
+    if not req.name.strip():
+        raise HTTPException(400, "Name is required.")
+    if "@" not in req.email:
+        raise HTTPException(400, "Enter a valid email address.")
+    if len(req.password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters.")
+    users = _read_users()
+    if any(u["email"].lower() == req.email.lower() for u in users):
+        raise HTTPException(400, "An account with this email already exists.")
+    user = {
+        "name": req.name.strip(),
+        "email": req.email.lower(),
+        "password": req.password,
+        "credits": 4_000_000,
+    }
+    users.append(user)
+    _write_users(users)
+    return {"name": user["name"], "email": user["email"], "credits": user["credits"]}
+
+
+@app.post("/api/auth/login")
+def auth_login(req: LoginRequest):
+    users = _read_users()
+    user = next(
+        (u for u in users if u["email"].lower() == req.email.lower() and u["password"] == req.password),
+        None,
+    )
+    if not user:
+        raise HTTPException(401, "Invalid email or password.")
+    return {"name": user["name"], "email": user["email"], "credits": user["credits"]}
+
+
+@app.patch("/api/auth/credits")
+def auth_update_credits(req: CreditsUpdateRequest):
+    users = _read_users()
+    user = next((u for u in users if u["email"].lower() == req.email.lower()), None)
+    if not user:
+        raise HTTPException(404, "User not found.")
+    user["credits"] = max(0, req.credits)
+    if req.score is not None:
+        user["last_score"] = req.score
+    if req.teams is not None:
+        user["last_teams"] = req.teams
+    _write_users(users)
+    return {"credits": user["credits"]}
+
+
+@app.get("/api/leaderboard")
+def global_leaderboard():
+    """Return all registered users ranked by their last fantasy score."""
+    users = _read_users()
+    result = [
+        {
+            "name": u["name"],
+            "credits": max(0, u.get("credits", 4_000_000)),
+            "last_score": u.get("last_score", 0),
+            "last_teams": u.get("last_teams", []),
+        }
+        for u in users
+    ]
+    result.sort(key=lambda x: x["last_score"], reverse=True)
+    return result

@@ -16,11 +16,7 @@ const FULL_NAME = {
 
 const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X"];
 
-const CREDIT_REWARDS = [2_000_000, 1_000_000, 500_000];
-
-function rankReward(rank) {
-  return CREDIT_REWARDS[rank - 1] ?? 0;
-}
+const API = "http://localhost:8000";
 
 function formatCredits(n) { return n.toLocaleString(); }
 
@@ -50,16 +46,21 @@ function useCountUp(target, duration = 1400, enabled = true) {
   return value;
 }
 
-export default function Leaderboard({ result, recommendations = [], credits, onCreditsEarned, onReset }) {
+export default function Leaderboard({ result, recommendations = [], credits, teams = [], onCreditsEarned, onReset }) {
   const [modelPerf, setModelPerf] = useState(null);
   const [rewardAwarded, setRewardAwarded] = useState(false);
   const [displayedReward, setDisplayedReward] = useState(0);
+  const [globalBoard, setGlobalBoard] = useState([]);
   const awardedRef = useRef(false);
 
   const displayScore = useCountUp(result?.user_total_score, 1400);
 
   useEffect(() => {
     fetchOptimizerPerformance().then(setModelPerf).catch(() => setModelPerf(null));
+    fetch(`${API}/api/leaderboard`)
+      .then(r => r.json())
+      .then(setGlobalBoard)
+      .catch(() => {});
   }, []);
 
   if (!result) return null;
@@ -73,19 +74,20 @@ export default function Leaderboard({ result, recommendations = [], credits, onC
   const userRank = allScores.filter(s => s > result.user_total_score).length + 1;
   const totalTeams = allScores.length;
 
-  const reward = rankReward(userRank);
+  // New formula: fantasy score × 5000
+  const reward = Math.round(result.user_total_score * 5000);
 
   // Award credits once on mount
   useEffect(() => {
-    if (awardedRef.current || reward === 0) return;
+    if (awardedRef.current) return;
     awardedRef.current = true;
     const t = setTimeout(() => {
       setRewardAwarded(true);
       setDisplayedReward(reward);
-      if (onCreditsEarned) onCreditsEarned(reward);
+      if (onCreditsEarned) onCreditsEarned(reward, result.user_total_score);
     }, 2000);
     return () => clearTimeout(t);
-  }, [reward]);
+  }, []);
 
   // AI vs You
   const leaderboardByTeam = Object.fromEntries(result.leaderboard.map(r => [r.team, r]));
@@ -135,58 +137,49 @@ export default function Leaderboard({ result, recommendations = [], credits, onC
       <div className="hairline" />
 
       {/* ── Credit Reward Banner ── */}
-      <div className={`rounded-sm border overflow-hidden transition-all duration-700 ${
-        userRank === 1
-          ? "border-gold/60 bg-gold/5"
-          : userRank <= 3
-          ? "border-teal/40 bg-teal/5"
-          : "border-border bg-card"
-      }`}>
+      <div className="rounded-sm border border-teal/40 bg-teal/5 overflow-hidden">
         <div className="px-6 py-5">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <p className="eyebrow">
-                {userRank === 1 ? "🥇 1st Place" : userRank === 2 ? "🥈 2nd Place" : userRank === 3 ? "🥉 3rd Place" : `#${userRank} Place`}
+              <p className="eyebrow">Race Complete · #{userRank} of {totalTeams}</p>
+              <h3 className="mt-2 font-display text-3xl text-ink">Credits Earned</h3>
+              <p className="mt-1 text-xs text-muted-foreground font-mono">
+                {result.user_total_score} pts × 5,000 = {formatCredits(reward)}
               </p>
-              <h3 className="mt-2 font-display text-3xl text-ink">
-                {reward > 0 ? "Credits Earned" : "Race Complete"}
-              </h3>
             </div>
-            {reward > 0 && (
-              <div className="text-right">
-                <div className={`font-display text-4xl tabular ${userRank === 1 ? "text-gold" : "text-teal"}`}>
-                  +{rewardAwarded ? formatCredits(animatedReward) : "—"}
-                </div>
-                <div className="eyebrow !text-[8px] text-muted-foreground mt-0.5">credits won</div>
+            <div className="text-right flex flex-col items-end gap-2">
+              <div className="font-display text-4xl tabular text-teal">
+                +{rewardAwarded ? formatCredits(animatedReward) : "—"}
               </div>
-            )}
+              <div className="eyebrow !text-[8px] text-muted-foreground">credits won</div>
+              <button
+                onClick={() => document.getElementById("global-leaderboard")?.scrollIntoView({ behavior: "smooth" })}
+                className="mt-1 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-xs text-ink/70 hover:text-ink hover:border-teal/40 transition-colors"
+              >
+                View Full Leaderboard
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14M13 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
           </div>
-
-          {reward > 0 && (
-            <div className="mt-4 pt-4 border-t border-border/50">
-              <div className="flex items-center gap-6 flex-wrap text-sm">
-                <div>
-                  <span className="text-muted-foreground">Credits before: </span>
-                  <span className="font-display text-base text-ink tabular">
-                    {formatCredits(credits - (rewardAwarded ? reward : 0))}
-                  </span>
-                </div>
-                <div className="text-teal">+{formatCredits(reward)}</div>
-                <div>
-                  <span className="text-muted-foreground">New balance: </span>
-                  <span className={`font-display text-base tabular ${userRank <= 3 ? "text-gold" : "text-ink"}`}>
-                    {rewardAwarded ? formatCredits(credits) : "…"}
-                  </span>
-                </div>
+          <div className="mt-4 pt-4 border-t border-border/50">
+            <div className="flex items-center gap-6 flex-wrap text-sm">
+              <div>
+                <span className="text-muted-foreground">Balance before: </span>
+                <span className="font-display text-base text-ink tabular">
+                  {formatCredits(Math.max(0, credits - (rewardAwarded ? reward : 0)))}
+                </span>
+              </div>
+              <div className="text-teal">+{formatCredits(reward)}</div>
+              <div>
+                <span className="text-muted-foreground">New balance: </span>
+                <span className="font-display text-base tabular text-gold">
+                  {rewardAwarded ? formatCredits(credits) : "…"}
+                </span>
               </div>
             </div>
-          )}
-
-          {reward === 0 && (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Top 3 finishes earn credits: 1st +2M · 2nd +1M · 3rd +500K
-            </p>
-          )}
+          </div>
         </div>
       </div>
 
@@ -288,7 +281,7 @@ export default function Leaderboard({ result, recommendations = [], credits, onC
       </div>
 
       {/* ── Desktop leaderboard table ── */}
-      <div className="hidden sm:block rounded-sm border border-border bg-card shadow-[var(--shadow-soft)] overflow-hidden">
+      <div id="leaderboard-table" className="hidden sm:block rounded-sm border border-border bg-card shadow-[var(--shadow-soft)] overflow-hidden">
         <div className="grid grid-cols-[48px_1fr_40px_40px_40px_52px_40px_60px] px-6 py-4 border-b border-border">
           {["Rank","Team","Pos","Spd","OT","Clean","VMG","Total"].map(h => (
             <span key={h} className="eyebrow !text-[8px] text-muted-foreground">{h}</span>
@@ -327,7 +320,7 @@ export default function Leaderboard({ result, recommendations = [], credits, onC
       </div>
 
       {/* ── Mobile leaderboard ── */}
-      <div className="sm:hidden rounded-sm border border-border bg-card shadow-[var(--shadow-soft)] overflow-hidden divide-y divide-border/50">
+      <div id="leaderboard-table-mobile" className="sm:hidden rounded-sm border border-border bg-card shadow-[var(--shadow-soft)] overflow-hidden divide-y divide-border/50">
         {sorted.map((row, i) => (
           <div
             key={row.team}
@@ -392,6 +385,62 @@ export default function Leaderboard({ result, recommendations = [], credits, onC
                 <span className="text-muted-foreground truncate font-mono text-[10px]">
                   {r.predicted_top3.join(", ")} → {r.actual_top3.join(", ")}
                 </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Global Fantasy Leaderboard ── */}
+      {globalBoard.length > 0 && (
+        <div id="global-leaderboard" className="rounded-sm border border-border bg-card shadow-[var(--shadow-soft)] overflow-hidden">
+          <div className="px-6 py-5 border-b border-border">
+            <p className="eyebrow">Fantasy Standings</p>
+            <h3 className="mt-1 font-display text-2xl text-ink">All Racers</h3>
+          </div>
+          <div className="divide-y divide-border/50">
+            {globalBoard.map((user, i) => (
+              <div key={user.name + i} className="flex items-center gap-4 px-6 py-4">
+                {/* Rank */}
+                <div className="w-8 shrink-0 text-center">
+                  {i === 0
+                    ? <span className="font-display text-xl text-gold">I</span>
+                    : i === 1
+                    ? <span className="font-display text-xl text-teal">II</span>
+                    : i === 2
+                    ? <span className="font-display text-lg text-muted-foreground">III</span>
+                    : <span className="font-display text-base text-muted-foreground/50">#{i + 1}</span>
+                  }
+                </div>
+                {/* Avatar */}
+                <div style={{
+                  width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+                  background: "linear-gradient(135deg, oklch(0.78 0.16 75), oklch(0.62 0.17 45))",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "12px", fontWeight: 700, color: "oklch(0.07 0.03 60)",
+                }}>
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                {/* Name + Teams */}
+                <div className="flex-1 min-w-0">
+                  <div className="font-sans text-sm font-medium text-ink truncate">{user.name}</div>
+                  {user.last_teams?.length > 0 && (
+                    <div className="flex gap-1 mt-0.5 flex-wrap">
+                      {user.last_teams.map(t => (
+                        <span key={t} className="text-xs font-mono text-muted-foreground/70">
+                          {FLAG[t] ?? "🏴"} {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Score */}
+                <div className="text-right shrink-0">
+                  <div className={`font-display text-xl tabular ${i === 0 ? "text-gold" : "text-ink"}`}>
+                    {(user.last_score ?? 0).toLocaleString()}
+                  </div>
+                  <div className="eyebrow !text-[7px] text-muted-foreground">fantasy pts</div>
+                </div>
               </div>
             ))}
           </div>

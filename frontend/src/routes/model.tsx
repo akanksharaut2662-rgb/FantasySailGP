@@ -224,7 +224,23 @@ function ModelPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="relative min-h-screen bg-background text-foreground">
+      {/* Race photo background */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }} aria-hidden="true">
+        <img
+          src="/race-bg.jpg"
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ opacity: 0.60 }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(3,6,18,0.70) 0%, rgba(3,6,18,0.20) 40%, rgba(3,6,18,0.78) 100%)",
+          }}
+        />
+      </div>
       {/* Nav */}
       <header className="fixed top-0 inset-x-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border">
         <div className="mx-auto max-w-7xl px-6 md:px-10 h-16 flex items-center justify-between">
